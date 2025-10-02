@@ -1,0 +1,66 @@
+// Event
+{
+    "id": "Guid",
+    "title": "string",
+    "description": "string",
+    "choices": "Choice[]",
+    "dependentEventIds": "string[]",
+    "dependentChoiceIds": "string[]",
+    "trigger": "Trigger"
+}
+// Choice
+{
+    "id": "Guid",
+    "text": "string",
+    "dependentEventIds": "string[]",
+    "dependentChoiceIds": "string[]",
+    "results": "Result[]"
+}
+//Result
+{
+    "attribute": "string",
+    "change": "int"
+}
+// Trigger
+{
+    "education": {
+        "min": "int",
+        "max": "int"
+    },
+    "treasury": {
+        "min": "int",
+        "max": "int"
+    },
+    "culture": {
+        "min": "int",
+        "max": "int"
+    },
+    "approval": {
+        "min": "int",
+        "max": "int"
+    },
+    "nobles": {
+        "min": "int",
+        "max": "int"
+    },
+    "diplomacy": {
+        "min": "int",
+        "max": "int"
+    },
+    "military" : {
+        "min": "int",
+        "max": "int"
+    },
+    "items" : "ItemId[]"
+}
+
+//attributes 
+{
+    "education": "int min 0, int max 20",
+    "military": "int min 0, int max 20",
+    "treasury": "int min 0, int max 9999",
+    "culture": "int min 0, int max 20",
+    "approval": "int min 0, int max 20",
+    "nobles": "int min 0, int max 20",
+    "diplomacy": "int min 0, int max 20",
+}
