@@ -28,6 +28,8 @@ let resultCounter = 0;
 let currentEvent = null;
 let allEvents = [];
 let allChoices = [];
+let currentItem = null;
+let allItems = [];
 
 // Make functions globally accessible
 window.hideTreeModal = function() {
@@ -57,6 +59,25 @@ window.hideJsonModal = function() {
     }
 };
 
+window.showItemModal = function() {
+    const modal = document.getElementById('itemModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.style.display = 'flex';
+        clearItemForm();
+    }
+};
+
+window.hideItemModal = function() {
+    const modal = document.getElementById('itemModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
+};
+
 window.exportEvent = function(index) {
  
     
@@ -79,10 +100,22 @@ window.exportEvent = function(index) {
         const eventTree = collectEventTree(rootEvent, allEvents);
         console.log('eventTree:', eventTree);
         
+        // Check for duplicates (should not happen due to Map usage, but good to verify)
+        const eventIds = eventTree.map(event => event.id);
+        const uniqueIds = new Set(eventIds);
+        const duplicatesFound = eventIds.length !== uniqueIds.size;
+        
+        if (duplicatesFound) {
+            console.warn('Duplicates detected in event tree - this should not happen!');
+            const duplicateIds = eventIds.filter((id, index) => eventIds.indexOf(id) !== index);
+            console.warn('Duplicate IDs:', duplicateIds);
+        } else {
+            console.log(`Event tree validated: ${eventTree.length} unique events, no duplicates found`);
+        }
+        
         // Create export data structure
         const exportData = {
-            rootEvent: rootEvent,
-            dependencyTree: eventTree,
+            Event: eventTree,
             exportedAt: new Date().toISOString(),
             totalEvents: eventTree.length,
             metadata: {
@@ -296,6 +329,23 @@ window.toggleReferenceList = function() {
     }
 };
 
+window.toggleItemsContainer = function() {
+    const content = document.querySelector('.items-content');
+    const icon = content?.parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
+    }
+};
+
 function collapseAllChoices() {
     const choiceElements = document.querySelectorAll('.choice-item');
     choiceElements.forEach(choiceElement => {
@@ -366,7 +416,9 @@ function parseCommaSeparatedIds(input) {
 }
 
 function getSelectedValues(inputId) {
-    const selected = selectedDependencies.events.get(inputId) || selectedDependencies.choices.get(inputId);
+    const selected = selectedDependencies.events.get(inputId) || 
+                    selectedDependencies.choices.get(inputId) || 
+                    selectedDependencies.items.get(inputId);
     return selected ? Array.from(selected) : [];
 }
 
@@ -405,6 +457,50 @@ function setSelectedValuesFromElement(inputElement, values) {
     
     // Store values to be set when autocomplete is ready
     inputElement.dataset.pendingValues = JSON.stringify(values);
+}
+
+function processPendingSelections(inputId, items, type, selectedContainer, dropdown) {
+    // Check if there are pending selections for this input
+    if (window.pendingSelections && window.pendingSelections[inputId]) {
+        const pendingValues = window.pendingSelections[inputId];
+        
+        // Process each pending value
+        pendingValues.forEach(itemId => {
+            // Find the item in the items array
+            const item = items.find(i => i.id === itemId);
+            if (item) {
+                // Use the existing selectItem function to add it
+                selectItem(item, type, inputId, selectedContainer, dropdown);
+            }
+        });
+        
+        // Clear the pending selections for this input
+        delete window.pendingSelections[inputId];
+    }
+}
+
+function processPendingValuesFromElement(input, items, type, selectedContainer, dropdown, uniqueId) {
+    // Check if there are pending values stored in the input element
+    if (input.dataset.pendingValues) {
+        try {
+            const pendingValues = JSON.parse(input.dataset.pendingValues);
+            
+            // Process each pending value
+            pendingValues.forEach(itemId => {
+                // Find the item in the items array
+                const item = items.find(i => i.id === itemId);
+                if (item) {
+                    // Use the existing selectItem function to add it
+                    selectItem(item, type, uniqueId, selectedContainer, dropdown);
+                }
+            });
+            
+            // Clear the pending values from the input element
+            delete input.dataset.pendingValues;
+        } catch (error) {
+            console.error('Error processing pending values:', error);
+        }
+    }
 }
 
 // Reference list management functions
@@ -446,15 +542,13 @@ function updateChoicesList() {
     ).join('');
 }
 
-function getItemsList() {
-    const itemsTextarea = document.getElementById('itemsList');
-    return itemsTextarea.value.split('\n').filter(item => item.trim() !== '').map(item => item.trim());
-}
+// Remove the old getItemsList function as it's now defined above with the new implementation
 
 function updateDependencySelects() {
     // Initialize autocomplete for main dependency inputs
     initializeAutocomplete('dependentEventIds', allEvents, 'event');
     initializeAutocomplete('dependentChoiceIds', allChoices, 'choice');
+    initializeAutocomplete('triggerItems', allItems, 'item');
     
     // Initialize autocomplete for choice dependency inputs
     const choiceElements = document.querySelectorAll('.choice-item');
@@ -470,7 +564,8 @@ function updateDependencySelects() {
 // Global storage for selected dependencies
 const selectedDependencies = {
     events: new Map(),
-    choices: new Map()
+    choices: new Map(),
+    items: new Map()
 };
 
 function initializeAutocomplete(inputId, items, type) {
@@ -481,6 +576,9 @@ function initializeAutocomplete(inputId, items, type) {
     const selectedContainer = document.getElementById(`${inputId}-selected`);
     
     setupAutocompleteEvents(input, dropdown, selectedContainer, items, type, inputId);
+    
+    // Process pending selections after autocomplete is set up
+    processPendingSelections(inputId, items, type, selectedContainer, dropdown);
 }
 
 function initializeAutocompleteForElement(input, items, type) {
@@ -495,6 +593,9 @@ function initializeAutocompleteForElement(input, items, type) {
     input.dataset.uniqueId = uniqueId;
     
     setupAutocompleteEvents(input, dropdown, selectedContainer, items, type, uniqueId);
+    
+    // Process pending values stored in the input element
+    processPendingValuesFromElement(input, items, type, selectedContainer, dropdown, uniqueId);
 }
 
 function setupAutocompleteEvents(input, dropdown, selectedContainer, items, type, uniqueId) {
@@ -523,7 +624,14 @@ function setupAutocompleteEvents(input, dropdown, selectedContainer, items, type
 function showAutocompleteResults(dropdown, items, query, type, uniqueId, selectedContainer) {
     const selected = selectedDependencies[type + 's'].get(uniqueId);
     const filtered = items.filter(item => {
-        const text = type === 'event' ? item.title : item.text;
+        let text;
+        if (type === 'event') {
+            text = item.title;
+        } else if (type === 'choice') {
+            text = item.text;
+        } else if (type === 'item') {
+            text = item.name;
+        }
         return text.toLowerCase().includes(query) && !selected.has(item.id);
     });
     
@@ -534,9 +642,31 @@ function showAutocompleteResults(dropdown, items, query, type, uniqueId, selecte
     } else {
         filtered.forEach(item => {
             const div = document.createElement('div');
-            const text = type === 'event' ? item.title : item.text;
+            let text, subtitle = '';
+            
+            if (type === 'event') {
+                text = item.title;
+            } else if (type === 'choice') {
+                text = item.text;
+            } else if (type === 'item') {
+                text = item.name;
+                // Add rarity and price as subtitle for items
+                const rarityNames = { '0': 'Common', '1': 'Uncommon', '2': 'Rare', '3': 'Epic', '4': 'Legendary' };
+                const rarityName = rarityNames[item.rarity] || 'Unknown';
+                subtitle = `${rarityName} - ${item.price} coins`;
+            }
+            
             div.className = 'p-3 hover:bg-gray-600 cursor-pointer text-sm border-b border-gray-600 last:border-b-0';
-            div.textContent = text.length > 60 ? text.substring(0, 60) + '...' : text;
+            
+            if (subtitle) {
+                div.innerHTML = `
+                    <div class="font-medium">${text.length > 50 ? text.substring(0, 50) + '...' : text}</div>
+                    <div class="text-xs text-gray-400 mt-1">${subtitle}</div>
+                `;
+            } else {
+                div.textContent = text.length > 60 ? text.substring(0, 60) + '...' : text;
+            }
+            
             div.onclick = () => selectItem(item, type, uniqueId, selectedContainer, dropdown);
             dropdown.appendChild(div);
         });
@@ -551,8 +681,18 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
     
     // Create selected item badge
     const badge = document.createElement('div');
-    const text = type === 'event' ? item.title : item.text;
-    const colorClass = type === 'event' ? 'bg-blue-600' : 'bg-green-600';
+    let text, colorClass;
+    
+    if (type === 'event') {
+        text = item.title;
+        colorClass = 'bg-blue-600';
+    } else if (type === 'choice') {
+        text = item.text;
+        colorClass = 'bg-green-600';
+    } else if (type === 'item') {
+        text = item.name;
+        colorClass = 'bg-cyan-600';
+    }
     
     badge.className = `${colorClass} text-white px-2 py-1 rounded text-xs flex items-center gap-1`;
     badge.innerHTML = `
@@ -887,9 +1027,10 @@ function generateTrigger() {
         }
     });
     
-    const items = parseCommaSeparatedIds(document.getElementById('triggerItems').value);
-    if (items.length > 0) {
-        trigger.items = items;
+    // Get selected items from the autocomplete system
+    const selectedItems = getSelectedValues('triggerItems');
+    if (selectedItems.length > 0) {
+        trigger.items = selectedItems;
     }
     
     return trigger;
@@ -956,12 +1097,15 @@ async function loadEvents() {
     if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
         try {
             await loadEventsFromFirebase();
+            await loadItemsFromFirebase();
         } catch (error) {
             console.error('Firebase loading failed, falling back to localStorage:', error);
             loadSavedEvents();
+            loadItemsLocally();
         }
     } else {
         loadSavedEvents();
+        loadItemsLocally();
     }
 }
 
@@ -1136,11 +1280,11 @@ function displayEvents(events, source = 'firebase') {
             });
             
             const loadFunction = isFirebase ? `loadFirebaseEventToForm('${event.id}')` : `loadEventToForm(${originalIndex})`;
-            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.id}')` : `deleteEvent(${originalIndex})`;
+            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.firebaseKey}')` : `deleteEvent(${originalIndex})`;
             
             eventCard.innerHTML = `
-                <h4 class="text-lg font-semibold text-orange-400 mb-3">${event.title}</h4>
-                <p class="text-gray-300 text-sm mb-4 line-clamp-3">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</p>
+                <h4 class="text-lg font-semibold text-orange-400 mb-3">${event.title || 'Untitled Event'}</h4>
+                <p class="text-gray-300 text-sm mb-4 line-clamp-3">${(event.description || '').substring(0, 100)}${(event.description || '').length > 100 ? '...' : ''}</p>
                 <p class="text-gray-500 text-xs mb-4">
                     Saved: ${savedDate} | Choices: ${event.choices ? event.choices.length : 0}
                     ${dependentOnThis.length > 0 ? ` | Used by: ${dependentOnThis.length} event${dependentOnThis.length !== 1 ? 's' : ''}` : ''}
@@ -1159,11 +1303,11 @@ function displayEvents(events, source = 'firebase') {
             const savedDate = new Date(event.savedAt || event.createdAt || Date.now()).toLocaleDateString();
             
             const loadFunction = isFirebase ? `loadFirebaseEventToForm('${event.id}')` : `loadEventToForm(${originalIndex})`;
-            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.id}')` : `deleteEvent(${originalIndex})`;
+            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.firebaseKey}')` : `deleteEvent(${originalIndex})`;
             
             eventCard.innerHTML = `
-                <h4 class="text-lg font-semibold text-yellow-400 mb-3">${event.title}</h4>
-                <p class="text-gray-300 text-sm mb-4 line-clamp-3">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</p>
+                <h4 class="text-lg font-semibold text-yellow-400 mb-3">${event.title || 'Untitled Event'}</h4>
+                <p class="text-gray-300 text-sm mb-4 line-clamp-3">${(event.description || '').substring(0, 100)}${(event.description || '').length > 100 ? '...' : ''}</p>
                 <p class="text-gray-500 text-xs mb-4">Saved: ${savedDate} | Choices: ${event.choices ? event.choices.length : 0}</p>
                 <div class="flex gap-2 flex-wrap">
                     <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="${loadFunction}">Load</button>
@@ -1223,7 +1367,7 @@ function loadEventToForm(index) {
         });
         
         if (event.trigger.items) {
-            document.getElementById('triggerItems').value = event.trigger.items.join(', ');
+            setSelectedValues('triggerItems', event.trigger.items);
         }
     }
     
@@ -1380,6 +1524,275 @@ function exportAllData() {
     URL.revokeObjectURL(url);
     
     showMessage('All game data exported successfully!');
+}
+
+// Item creation functions
+function clearItemForm() {
+    document.getElementById('itemName').value = '';
+    document.getElementById('itemDescription').value = '';
+    document.getElementById('itemPrice').value = '';
+    document.getElementById('itemRarity').value = '';
+    document.getElementById('itemImage').value = '';
+    updateItemPreview();
+    currentItem = null;
+}
+
+function updateItemPreview() {
+    const name = document.getElementById('itemName').value;
+    const description = document.getElementById('itemDescription').value;
+    const price = document.getElementById('itemPrice').value;
+    const rarity = document.getElementById('itemRarity').value;
+    const image = document.getElementById('itemImage').value;
+    
+    const previewContainer = document.getElementById('itemPreview');
+    
+    if (!name && !description && !price && !rarity && !image) {
+        previewContainer.innerHTML = '<div class="text-gray-400 text-sm">Fill in the form to see item preview...</div>';
+        return;
+    }
+    
+    const rarityNames = {
+        '0': { name: 'Common', color: 'text-gray-300', emoji: '⚪' },
+        '1': { name: 'Uncommon', color: 'text-green-300', emoji: '🟢' },
+        '2': { name: 'Rare', color: 'text-blue-300', emoji: '🔵' },
+        '3': { name: 'Epic', color: 'text-purple-300', emoji: '🟣' },
+        '4': { name: 'Legendary', color: 'text-yellow-300', emoji: '🟡' }
+    };
+    
+    const rarityInfo = rarityNames[rarity] || { name: 'Unknown', color: 'text-gray-300', emoji: '❓' };
+    
+    previewContainer.innerHTML = `
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h5 class="text-lg font-semibold text-white">${name || 'Unnamed Item'}</h5>
+                <div class="flex items-center gap-2">
+                    <span class="${rarityInfo.color} text-sm font-medium">${rarityInfo.emoji} ${rarityInfo.name}</span>
+                </div>
+            </div>
+            ${description ? `<p class="text-gray-300 text-sm">${description}</p>` : ''}
+            <div class="flex items-center justify-between">
+                <span class="text-yellow-400 font-medium">💰 ${price || '0'} coins</span>
+                ${image ? `<span class="text-cyan-400 text-sm">🖼️ Has Image</span>` : ''}
+            </div>
+            ${image ? `<div class="mt-2"><img src="${image}" alt="${name}" class="w-16 h-16 object-cover rounded-lg border border-gray-500" onerror="this.style.display='none'"></div>` : ''}
+        </div>
+    `;
+}
+
+function generateItemJson() {
+    const name = document.getElementById('itemName').value;
+    const description = document.getElementById('itemDescription').value;
+    const price = document.getElementById('itemPrice').value;
+    const rarity = document.getElementById('itemRarity').value;
+    const image = document.getElementById('itemImage').value;
+    
+    if (!name || !description || !price || !rarity) {
+        showMessage('Please fill in all required fields (name, description, price, rarity)', 'error');
+        return null;
+    }
+    
+    const item = {
+        item: {
+            id: generateGuid(),
+            name: name,
+            description: description,
+            price: parseInt(price),
+            image: image || "",
+            rarity: rarity
+        }
+    };
+    
+    return item;
+}
+
+function generateItem() {
+    console.log('generateItem called');
+    const item = generateItemJson();
+    console.log('Generated item from generateItemJson:', item);
+    
+    if (item) {
+        currentItem = item;
+        console.log('Set currentItem to:', currentItem);
+        
+        // Show the JSON in console for debugging
+        console.log('Generated Item:', JSON.stringify(item, null, 2));
+        
+        // Update preview with the generated item
+        updateItemPreview();
+        
+        console.log('Firebase check in generateItem - typeof firebase:', typeof firebase);
+        console.log('Firebase check in generateItem - firebase.apps.length:', firebase.apps ? firebase.apps.length : 'undefined');
+        
+        // Try Firebase first, fallback to local storage
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            console.log('Using Firebase to save generated item');
+            saveItemToFirebase(item.item);
+        } else {
+            console.log('Using local storage to save generated item');
+            // Automatically add to items list locally
+            allItems.push(item.item);
+            updateItemsDisplay();
+            showMessage(`Item "${item.item.name}" generated and added to list!`);
+        }
+        
+        // Close the modal after successful generation
+        hideItemModal();
+    } else {
+        console.log('No item generated');
+    }
+}
+
+function copyItemJson() {
+    const item = currentItem || generateItemJson();
+    if (item) {
+        const jsonString = JSON.stringify(item, null, 2);
+        navigator.clipboard.writeText(jsonString).then(() => {
+            showMessage('Item JSON copied to clipboard!');
+        }).catch(() => {
+            showMessage('Failed to copy JSON to clipboard', 'error');
+        });
+    }
+}
+
+function addItemToList() {
+    console.log('addItemToList called');
+    const item = currentItem || generateItemJson();
+    console.log('Item to add:', item);
+    
+    if (item) {
+        console.log('Firebase check - typeof firebase:', typeof firebase);
+        console.log('Firebase check - firebase.apps.length:', firebase.apps ? firebase.apps.length : 'undefined');
+        
+        // Try Firebase first, fallback to local storage
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            console.log('Using Firebase to save item');
+            saveItemToFirebase(item.item);
+        } else {
+            console.log('Using local storage to save item');
+            // Add to allItems array locally
+            allItems.push(item.item);
+            updateItemsDisplay();
+            showMessage(`Item "${item.item.name}" added to items list!`);
+        }
+        
+        hideItemModal();
+    } else {
+        console.log('No item to add');
+    }
+}
+
+function updateItemsDisplay() {
+    const itemsGrid = document.getElementById('itemsGrid');
+    
+    if (allItems.length === 0) {
+        itemsGrid.innerHTML = `
+            <div class="text-gray-400 text-sm text-center col-span-full py-8">
+                No items created yet. Click "Create Item" to add your first item!
+            </div>
+        `;
+        return;
+    }
+    
+    const rarityInfo = {
+        '0': { name: 'Common', color: 'text-gray-300', bgColor: 'bg-gray-600', emoji: '⚪' },
+        '1': { name: 'Uncommon', color: 'text-green-300', bgColor: 'bg-green-900', emoji: '🟢' },
+        '2': { name: 'Rare', color: 'text-blue-300', bgColor: 'bg-blue-900', emoji: '🔵' },
+        '3': { name: 'Epic', color: 'text-purple-300', bgColor: 'bg-purple-900', emoji: '🟣' },
+        '4': { name: 'Legendary', color: 'text-yellow-300', bgColor: 'bg-yellow-900', emoji: '🟡' }
+    };
+    
+    itemsGrid.innerHTML = allItems.map((item, index) => {
+        const rarity = rarityInfo[item.rarity] || rarityInfo['0'];
+        return `
+            <div class="item-card group relative bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-5 border-2 ${rarity.bgColor.replace('bg-', 'border-')} hover:scale-105 transition-all duration-300 hover:shadow-2xl hover:shadow-${rarity.bgColor.split('-')[1]}-500/20">
+                <!-- Rarity Glow Effect -->
+                <div class="absolute inset-0 rounded-xl ${rarity.bgColor} opacity-5 group-hover:opacity-10 transition-opacity duration-300"></div>
+                
+                <!-- Header with Name, Rarity, and Remove Button -->
+                <div class="relative flex items-start justify-between mb-4">
+                    <div class="flex-1 pr-2">
+                        <h5 class="text-white font-bold text-lg mb-2 leading-tight" title="${item.name}">
+                            ${item.name}
+                        </h5>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="${rarity.color} text-sm font-bold px-3 py-1 bg-black/30 rounded-full border border-current/20 backdrop-blur-sm">
+                            ${rarity.emoji} ${rarity.name}
+                        </span>
+                        <button onclick="removeItem(${index})" class="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-400 hover:text-red-300 rounded-full text-lg font-bold transition-all duration-200 hover:scale-110" title="Remove item">
+                            ×
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="relative mb-4">
+                    <p class="text-gray-300 text-sm leading-relaxed min-h-[2.5rem]" title="${item.description}">
+                        ${item.description}
+                    </p>
+                </div>
+                
+                <!-- Price and Image Indicator -->
+                <div class="relative flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-yellow-400 text-lg font-bold flex items-center gap-1">
+                            <span class="text-xl">💰</span>
+                            ${item.price.toLocaleString()}
+                        </span>
+                    </div>
+                    ${item.image ? `
+                        <div class="flex items-center gap-1 text-cyan-400 text-sm font-medium bg-cyan-500/10 px-2 py-1 rounded-full border border-cyan-500/20">
+                            <span>🖼️</span>
+                            <span>Image</span>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- ID Section -->
+                <div class="relative pt-3 border-t border-gray-600/50">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-gray-500 text-xs font-medium mb-1">Item ID</div>
+                            <div class="text-gray-300 text-xs font-mono bg-black/20 px-2 py-1 rounded border border-gray-600/30 break-all">
+                                ${item.id}
+                            </div>
+                        </div>
+                        <button onclick="copyItemId('${item.id}')" class="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 hover:text-blue-300 rounded-lg transition-all duration-200 hover:scale-110 group" title="Copy ID">
+                            <span class="text-lg group-hover:scale-110 transition-transform duration-200">📋</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function removeItem(index) {
+    const item = allItems[index];
+    if (confirm(`Are you sure you want to remove "${item.name}"?`)) {
+        // Try Firebase first, fallback to local storage
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            deleteFirebaseItem(item.firebaseKey || item.id);
+        } else {
+            // Remove locally
+            allItems.splice(index, 1);
+            updateItemsDisplay();
+            showMessage(`Item "${item.name}" removed from list!`);
+        }
+    }
+}
+
+function copyItemId(itemId) {
+    navigator.clipboard.writeText(itemId).then(() => {
+        showMessage('Item ID copied to clipboard!');
+    }).catch(() => {
+        showMessage('Failed to copy item ID', 'error');
+    });
+}
+
+function getItemsList() {
+    // Return array of item IDs for compatibility with existing code
+    return allItems.map(item => item.id);
 }
 
 // Tree visualization functions
@@ -1914,6 +2327,18 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('collapseAll').addEventListener('click', collapseAllChoices);
     document.getElementById('expandAll').addEventListener('click', expandAllChoices);
     
+    // Item modal event listeners
+    document.getElementById('createItemBtn').addEventListener('click', showItemModal);
+    document.getElementById('generateItemBtn').addEventListener('click', generateItem);
+    document.getElementById('copyItemBtn').addEventListener('click', copyItemJson);
+    
+    // Item form input listeners for live preview
+    document.getElementById('itemName').addEventListener('input', updateItemPreview);
+    document.getElementById('itemDescription').addEventListener('input', updateItemPreview);
+    document.getElementById('itemPrice').addEventListener('input', updateItemPreview);
+    document.getElementById('itemRarity').addEventListener('change', updateItemPreview);
+    document.getElementById('itemImage').addEventListener('input', updateItemPreview);
+    
     
     // Modal event listeners
     document.querySelector('.close').addEventListener('click', hideLoadModal);
@@ -1970,12 +2395,16 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('click', function(event) {
         const loadModal = document.getElementById('loadModal');
         const treeModal = document.getElementById('treeModal');
+        const itemModal = document.getElementById('itemModal');
         
         if (event.target === loadModal) {
             hideLoadModal();
         }
         if (event.target === treeModal) {
             hideTreeModal();
+        }
+        if (event.target === itemModal) {
+            hideItemModal();
         }
     });
     
@@ -1984,6 +2413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.key === 'Escape') {
             hideLoadModal();
             hideTreeModal();
+            hideItemModal();
         }
     });
     
@@ -1992,6 +2422,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize event filter buttons
     updateEventFilterButtons();
+    
+    // Initialize items display
+    updateItemsDisplay();
     
     // Add initial choice
     addChoice();
@@ -2013,9 +2446,9 @@ async function saveEventToFirebase(event) {
             savedAt: new Date().toISOString()
         };
         
-        // Use the event's GUID as the Firebase key instead of auto-generating
-        const eventsRef = database.ref('/');
-        const eventRef = eventsRef.child(event.id);
+        // Save to the events collection with auto-generated key
+        const eventsRef = database.ref('events');
+        const eventRef = eventsRef.push();
         await eventRef.set(eventData);
         
         showMessage('Event saved to Firebase!');
@@ -2042,8 +2475,8 @@ async function saveEventToFirebase(event) {
 
 async function loadEventsFromFirebase() {
     try {
-        // Get reference to root node (where your data actually is)
-        const eventsRef = database.ref('/');
+        // Get reference to events collection
+        const eventsRef = database.ref('events');
         
         // Get the data once
         const snapshot = await eventsRef.once('value');
@@ -2060,9 +2493,10 @@ async function loadEventsFromFirebase() {
                 // Skip test connection entries
                 if (key === 'test_connection') return;
                 
-                // Keep the original GUID ID intact - Firebase key should match the GUID
+                // Add Firebase key as firebaseKey for reference, keep original event ID
                 events.push({
                     ...event,
+                    firebaseKey: key, // Store the Firebase auto-generated key for deletion
                     // Convert Firebase timestamp to readable format if needed
                     savedAt: event.savedAt || new Date(event.createdAt || Date.now()).toISOString()
                 });
@@ -2156,7 +2590,7 @@ function loadFirebaseEventToForm(eventId) {
         });
         
         if (event.trigger.items) {
-            document.getElementById('triggerItems').value = event.trigger.items.join(', ');
+            setSelectedValues('triggerItems', event.trigger.items);
         }
     }
     
@@ -2189,11 +2623,11 @@ function loadFirebaseEventToForm(eventId) {
     showMessage('Event loaded from Firebase!');
 }
 
-async function deleteFirebaseEvent(eventId) {
+async function deleteFirebaseEvent(firebaseKey) {
     if (confirm('Are you sure you want to delete this event from Firebase?')) {
         try {
-            // Use the GUID directly as the Firebase key since we now save events with their GUID as the key
-            const eventRef = database.ref(`/${eventId}`);
+            // Use the Firebase auto-generated key to delete from events collection
+            const eventRef = database.ref(`events/${firebaseKey}`);
             
             // Check if the event exists first
             const snapshot = await eventRef.once('value');
@@ -2226,4 +2660,169 @@ async function deleteFirebaseEvent(eventId) {
             }
         }
     }
+}
+
+// Firebase functions for items
+async function saveItemToFirebase(item) {
+    try {
+  
+        
+        const itemData = {
+            ...item,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            savedAt: new Date().toISOString()
+        };
+        
+        
+        // Save to the items collection with auto-generated key
+        const itemsRef = database.ref('items');
+        const itemRef = itemsRef.push();
+        
+        
+        const result = await itemRef.set(itemData);
+        
+        // Verify the item was actually saved
+        const verification = await itemRef.once('value');
+  
+     
+        showMessage(`Item "${item.name}" saved to Firebase!`);
+        
+        // Wait a moment for the data to be set, then reload
+        setTimeout(() => {
+            loadItemsFromFirebase();
+        }, 1000);
+    } catch (error) {
+        console.error('Error saving item to Firebase: ', error);
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack
+        });
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Firebase permission denied - check database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Firebase network error - saving locally instead', 'error');
+        } else {
+            showMessage(`Firebase error: ${error.message} - saving locally`, 'error');
+        }
+        
+        // Fallback to local storage
+        allItems.push(item);
+        updateItemsDisplay();
+        showMessage(`Item "${item.name}" added to local list!`);
+    }
+}
+
+async function loadItemsFromFirebase() {
+    try {
+  
+        
+        // Get reference to items collection
+        const itemsRef = database.ref('items');
+        
+        // Get the data once
+        const snapshot = await itemsRef.once('value');
+        
+  
+        
+        const items = [];
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+    
+            
+            // Convert the object to an array
+            Object.keys(data).forEach(key => {
+                const item = data[key];
+          
+                
+                // Add Firebase key as firebaseKey for reference, keep original item ID
+                items.push({
+                    ...item,
+                    firebaseKey: key, // Store the Firebase auto-generated key for deletion
+                    // Convert Firebase timestamp to readable format if needed
+                    savedAt: item.savedAt || new Date(item.createdAt || Date.now()).toISOString()
+                });
+            });
+            
+            // Sort items by createdAt (most recent first)
+            items.sort((a, b) => {
+                const aTime = new Date(a.createdAt || a.savedAt || 0).getTime();
+                const bTime = new Date(b.createdAt || b.savedAt || 0).getTime();
+                return bTime - aTime;
+            });
+        } 
+        
+  
+        
+        // Update allItems with Firebase data
+        allItems = items;
+        updateItemsDisplay();
+        updateReferenceLists(); // Update dependency selects with new items
+        
+   
+        
+    } catch (error) {
+        console.error('Error loading items from Firebase: ', error);
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Firebase permission denied for items - check database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Firebase network error for items - check internet connection', 'error');
+        } else {
+            showMessage(`Firebase items error: ${error.message}`, 'error');
+        }
+        
+        // Fallback to local storage
+        loadItemsLocally();
+    }
+}
+
+async function deleteFirebaseItem(firebaseKey) {
+    if (confirm('Are you sure you want to delete this item from Firebase?')) {
+        try {
+            // Use the Firebase auto-generated key to delete from items collection
+            const itemRef = database.ref(`items/${firebaseKey}`);
+            
+            // Check if the item exists first
+            const snapshot = await itemRef.once('value');
+            if (!snapshot.exists()) {
+                showMessage('Item not found in Firebase', 'error');
+                return;
+            }
+            
+            const itemData = snapshot.val();
+            
+            // Perform the delete operation
+            await itemRef.remove();
+            
+            showMessage(`Item "${itemData.name}" deleted from Firebase!`);
+            
+            // Wait a moment then reload
+            setTimeout(() => {
+                loadItemsFromFirebase();
+            }, 500);
+            
+        } catch (error) {
+            console.error('Error deleting item:', error);
+            
+            if (error.code === 'PERMISSION_DENIED') {
+                showMessage('Permission denied - check Firebase database rules', 'error');
+            } else if (error.code === 'NETWORK_ERROR') {
+                showMessage('Network error - check your internet connection', 'error');
+            } else if (error.code === 'UNAVAILABLE') {
+                showMessage('Firebase service temporarily unavailable', 'error');
+            } else {
+                showMessage(`Firebase delete error: ${error.message || 'Unknown error'}`, 'error');
+            }
+        }
+    }
+}
+
+function loadItemsLocally() {
+    // For now, items are only stored in memory locally
+    // You could extend this to use localStorage if needed
+    console.log('Loading items locally - currently in memory only');
+    updateItemsDisplay();
 }

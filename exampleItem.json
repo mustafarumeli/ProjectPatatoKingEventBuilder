@@ -1,0 +1,17 @@
+{
+    "item": {
+        "id": "Guid",
+        "name": "string",
+        "description": "string",
+        "price": "int",
+        "image": "string",
+        "rarity": "Rarity"
+    },
+    "rarity": {
+        "common": "0",
+        "uncommon": "1",
+        "rare": "2",
+        "epic": "3",
+        "legendary": "4"
+    }
+}
