@@ -346,6 +346,77 @@ window.toggleItemsContainer = function() {
     }
 };
 
+window.toggleEventBuilder = function() {
+    const content = document.querySelector('.event-builder-content');
+    const icon = content?.parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
+    }
+};
+
+window.toggleSavedEvents = function() {
+    const content = document.querySelector('.saved-events-content');
+    const icon = content?.parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
+    }
+};
+
+window.collapseAllContainers = function() {
+    // Collapse Event Builder
+    const eventBuilderContent = document.querySelector('.event-builder-content');
+    const eventBuilderIcon = eventBuilderContent?.parentElement.querySelector('.collapse-icon');
+    if (eventBuilderContent && eventBuilderIcon) {
+        eventBuilderContent.style.display = 'none';
+        eventBuilderIcon.textContent = '+';
+    }
+    
+    // Collapse Saved Events
+    const savedEventsContent = document.querySelector('.saved-events-content');
+    const savedEventsIcon = savedEventsContent?.parentElement.querySelector('.collapse-icon');
+    if (savedEventsContent && savedEventsIcon) {
+        savedEventsContent.style.display = 'none';
+        savedEventsIcon.textContent = '+';
+    }
+    
+    // Collapse Items
+    const itemsContent = document.querySelector('.items-content');
+    const itemsIcon = itemsContent?.parentElement.querySelector('.collapse-icon');
+    if (itemsContent && itemsIcon) {
+        itemsContent.style.display = 'none';
+        itemsIcon.textContent = '+';
+    }
+    
+    // Collapse Reference Lists
+    const referenceContent = document.querySelector('.reference-list-content');
+    const referenceIcon = referenceContent?.parentElement.querySelector('.collapse-icon');
+    if (referenceContent && referenceIcon) {
+        referenceContent.style.display = 'none';
+        referenceIcon.textContent = '+';
+    }
+    
+    // Show success message
+    showMessage('All containers collapsed!', 'success');
+};
+
 function collapseAllChoices() {
     const choiceElements = document.querySelectorAll('.choice-item');
     choiceElements.forEach(choiceElement => {
@@ -391,19 +462,19 @@ function showMessage(text, type = 'success') {
 
     const message = document.createElement('div');
     const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
-    message.className = `toast-message fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+    message.className = `toast-message fixed top-4 left-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 -translate-x-full`;
     message.textContent = text;
     
     document.body.appendChild(message);
     
     // Animate in
     setTimeout(() => {
-        message.classList.remove('translate-x-full');
+        message.classList.remove('-translate-x-full');
     }, 100);
     
     // Animate out and remove
     setTimeout(() => {
-        message.classList.add('translate-x-full');
+        message.classList.add('-translate-x-full');
         setTimeout(() => {
             message.remove();
         }, 300);
@@ -778,8 +849,8 @@ function removeSelectedItem(itemId, type, uniqueId, buttonElement) {
 }
 
 function refreshReferenceLists() {
-    // Update from current form
-    const currentFormEvent = generateEventJson();
+    // Update from current form - silently generate without error messages
+    const currentFormEvent = generateEventJsonSilent();
     if (currentFormEvent) {
         // Add current event to temporary list for display
         const tempEvents = [...allEvents];
@@ -821,7 +892,6 @@ function refreshReferenceLists() {
         updateReferenceLists();
     }
     
-    showMessage('Reference lists refreshed!');
 }
 
 // Choice management functions
@@ -958,6 +1028,67 @@ function removeResult(resultId) {
 }
 
 // Event generation functions
+function generateEventJsonSilent() {
+    const eventTitle = document.getElementById('eventTitle').value;
+    const eventDescription = document.getElementById('eventDescription').value;
+    
+    // Silent version - no error messages, just return null if incomplete
+    if (!eventTitle || !eventDescription) {
+        return null;
+    }
+    
+    // Generate event object (same logic as generateEventJson)
+    const event = {
+        title: eventTitle,
+        description: eventDescription,
+        choices: []
+    };
+    
+    // Get all choices
+    const choiceElements = document.querySelectorAll('[id^="choice-"]');
+    choiceElements.forEach(choiceElement => {
+        const choiceId = choiceElement.id.replace('choice-', '');
+        const choiceText = choiceElement.querySelector(`#choiceText-${choiceId}`).value;
+        
+        if (choiceText) {
+            const choice = {
+                text: choiceText,
+                results: []
+            };
+            
+            // Get dependent events
+            const dependentEvents = choiceElement.querySelector(`#dependentEvents-${choiceId}`).value;
+            if (dependentEvents) {
+                choice.dependentEvents = dependentEvents.split(',').map(e => e.trim()).filter(e => e);
+            }
+            
+            // Get dependent choices
+            const dependentChoices = choiceElement.querySelector(`#dependentChoices-${choiceId}`).value;
+            if (dependentChoices) {
+                choice.dependentChoices = dependentChoices.split(',').map(c => c.trim()).filter(c => c);
+            }
+            
+            // Get results
+            const resultElements = choiceElement.querySelectorAll(`[id^="result-${choiceId}-"]`);
+            resultElements.forEach(resultElement => {
+                const resultType = resultElement.querySelector('select').value;
+                const resultValue = resultElement.querySelector('input').value;
+                
+                if (resultType && resultValue) {
+                    choice.results.push({
+                        type: resultType,
+                        value: resultValue
+                    });
+                }
+            });
+            
+            event.choices.push(choice);
+        }
+    });
+    
+    return event;
+}
+
 function generateEventJson() {
     const eventTitle = document.getElementById('eventTitle').value;
     const eventDescription = document.getElementById('eventDescription').value;
