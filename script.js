@@ -39,6 +39,77 @@ window.hideTreeModal = function() {
     }
 };
 
+window.showJsonModal = function() {
+    const modal = document.getElementById('jsonModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.style.display = 'flex';
+    }
+};
+
+window.hideJsonModal = function() {
+    const modal = document.getElementById('jsonModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
+};
+
+window.exportEvent = function(index) {
+ 
+    
+    try {
+        // Use allEvents array (populated from Firebase) instead of localStorage
+        if (allEvents.length === 0) {
+            showMessage('No events available to export. Please save some events first.', 'error');
+            return;
+        }
+        
+        const rootEvent = allEvents[index];
+        
+        if (!rootEvent) {
+            showMessage(`Error: Event not found at index ${index}`, 'error');
+            console.error('No event found at index:', index);
+            return;
+        }
+        
+        // Collect all events in the dependency tree
+        const eventTree = collectEventTree(rootEvent, allEvents);
+        console.log('eventTree:', eventTree);
+        
+        // Create export data structure
+        const exportData = {
+            rootEvent: rootEvent,
+            dependencyTree: eventTree,
+            exportedAt: new Date().toISOString(),
+            totalEvents: eventTree.length,
+            metadata: {
+                description: `Complete event tree export for: ${rootEvent.title}`,
+                includes: 'Root event and all its dependencies (forward and backward)'
+            }
+        };
+        
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${rootEvent.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showMessage(`Event tree exported successfully! (${eventTree.length} events included)`);
+    } catch (error) {
+        console.error('Export error:', error);
+        showMessage('Export failed: ' + error.message, 'error');
+    }
+};
+
 // Global tree state
 let currentTreeEventIndex = null;
 let currentTreeOptions = { showForward: true, showBackward: true, includeChoices: true };
@@ -205,6 +276,23 @@ window.toggleTrigger = function() {
         content.style.display = 'none';
         icon.textContent = '+';
         triggerSection.classList.add('collapsed');
+    }
+};
+
+window.toggleReferenceList = function() {
+    const content = document.querySelector('.reference-list-content');
+    const icon = document.querySelector('.reference-list-content').parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
     }
 };
 
@@ -810,20 +898,23 @@ function generateTrigger() {
 function previewEvent() {
     const event = generateEventJson();
     if (event) {
-        const jsonPreview = document.getElementById('jsonPreview');
-        jsonPreview.textContent = JSON.stringify(event, null, 2);
+        const jsonPreviewModal = document.getElementById('jsonPreviewModal');
+        jsonPreviewModal.textContent = JSON.stringify(event, null, 2);
         currentEvent = event;
         
         // Update reference lists with current form data
         refreshReferenceLists();
+        
+        // Show the JSON modal
+        showJsonModal();
         
         showMessage('JSON preview generated successfully!');
     }
 }
 
 function copyJsonToClipboard() {
-    const jsonPreview = document.getElementById('jsonPreview');
-    const text = jsonPreview.textContent;
+    const jsonPreviewModal = document.getElementById('jsonPreviewModal');
+    const text = jsonPreviewModal.textContent;
     
     if (text && text !== 'Click "Preview JSON" to see the generated event structure...') {
         navigator.clipboard.writeText(text).then(() => {
@@ -1171,41 +1262,6 @@ function deleteEvent(index) {
     }
 }
 
-function exportEvent(index) {
-    const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
-    const rootEvent = savedEvents[index];
-    
-    if (!rootEvent) return;
-    
-    // Collect all events in the dependency tree
-    const eventTree = collectEventTree(rootEvent, savedEvents);
-    
-    // Create export data structure
-    const exportData = {
-        rootEvent: rootEvent,
-        dependencyTree: eventTree,
-        exportedAt: new Date().toISOString(),
-        totalEvents: eventTree.length,
-        metadata: {
-            description: `Complete event tree export for: ${rootEvent.title}`,
-            includes: 'Root event and all its dependencies (forward and backward)'
-        }
-    };
-    
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${rootEvent.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    showMessage(`Event tree exported successfully! (${eventTree.length} events included)`);
-}
 
 // Function to collect all events in the dependency tree
 function collectEventTree(rootEvent, allSavedEvents) {
@@ -1791,7 +1847,7 @@ function clearForm() {
     document.getElementById('choicesContainer').innerHTML = '';
     
     // Clear preview
-    document.getElementById('jsonPreview').textContent = 'Click "Preview JSON" to see the generated event structure...';
+    document.getElementById('jsonPreviewModal').textContent = 'Click "Preview JSON" to see the generated event structure...';
     
     // Reset counters
     choiceCounter = 0;
@@ -1849,7 +1905,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Button event listeners
     document.getElementById('addChoice').addEventListener('click', addChoice);
     document.getElementById('previewEvent').addEventListener('click', previewEvent);
-    document.getElementById('copyJson').addEventListener('click', copyJsonToClipboard);
+    document.getElementById('copyJsonModal').addEventListener('click', copyJsonToClipboard);
     document.getElementById('saveEvent').addEventListener('click', saveEvent);
     document.getElementById('loadEvent').addEventListener('click', showLoadModal);
     document.getElementById('clearForm').addEventListener('click', clearForm);
@@ -1957,9 +2013,10 @@ async function saveEventToFirebase(event) {
             savedAt: new Date().toISOString()
         };
         
-        // Push to the root node in Realtime Database (to match existing structure)
+        // Use the event's GUID as the Firebase key instead of auto-generating
         const eventsRef = database.ref('/');
-        const newEventRef = await eventsRef.push(eventData);
+        const eventRef = eventsRef.child(event.id);
+        await eventRef.set(eventData);
         
         showMessage('Event saved to Firebase!');
         
@@ -2003,12 +2060,9 @@ async function loadEventsFromFirebase() {
                 // Skip test connection entries
                 if (key === 'test_connection') return;
                 
-                // Preserve original ID and add Firebase key
+                // Keep the original GUID ID intact - Firebase key should match the GUID
                 events.push({
                     ...event,
-                    id: key, // Use Firebase key as primary ID for operations
-                    originalId: event.id, // Preserve original GUID for dependency resolution
-                    firebaseKey: key, // Explicit Firebase key reference
                     // Convert Firebase timestamp to readable format if needed
                     savedAt: event.savedAt || new Date(event.createdAt || Date.now()).toISOString()
                 });
@@ -2021,31 +2075,6 @@ async function loadEventsFromFirebase() {
                 return bTime - aTime;
             });
         }
-        
-        // Update dependency references to use Firebase keys for proper linking
-        events.forEach(event => {
-            // Update event dependencies
-            if (event.dependentEventIds) {
-                event.dependentEventIds = event.dependentEventIds.map(depId => {
-                    // Find the event with this original ID and return its Firebase key
-                    const targetEvent = events.find(e => e.originalId === depId);
-                    return targetEvent ? targetEvent.id : depId;
-                });
-            }
-            
-            // Update choice dependencies within choices
-            if (event.choices) {
-                event.choices.forEach(choice => {
-                    if (choice.dependentEventIds) {
-                        choice.dependentEventIds = choice.dependentEventIds.map(depId => {
-                            // Find the event with this original ID and return its Firebase key
-                            const targetEvent = events.find(e => e.originalId === depId);
-                            return targetEvent ? targetEvent.id : depId;
-                        });
-                    }
-                });
-            }
-        });
         
         // Update reference lists with Firebase data
         allEvents = events.map(event => ({
@@ -2163,33 +2192,17 @@ function loadFirebaseEventToForm(eventId) {
 async function deleteFirebaseEvent(eventId) {
     if (confirm('Are you sure you want to delete this event from Firebase?')) {
         try {
-            // Find the Firebase key for this event
-            const eventsRef = database.ref('/');
-            const snapshot = await eventsRef.once('value');
+            // Use the GUID directly as the Firebase key since we now save events with their GUID as the key
+            const eventRef = database.ref(`/${eventId}`);
             
+            // Check if the event exists first
+            const snapshot = await eventRef.once('value');
             if (!snapshot.exists()) {
-                showMessage('No events found in Firebase', 'error');
-                return;
-            }
-            
-            const data = snapshot.val();
-            let firebaseKey = null;
-            
-            // Search for the event by its ID field or use the eventId as Firebase key directly
-            Object.keys(data).forEach(key => {
-                const event = data[key];
-                if (event && (event.id === eventId || key === eventId)) {
-                    firebaseKey = key;
-                }
-            });
-            
-            if (!firebaseKey) {
                 showMessage('Event not found in Firebase', 'error');
                 return;
             }
             
-            // Perform the delete operation using the correct Firebase key
-            const eventRef = database.ref(`/${firebaseKey}`);
+            // Perform the delete operation
             await eventRef.remove();
             
             showMessage('Event deleted from Firebase!');
