@@ -4,16 +4,33 @@
     "title": "string",
     "description": "string",
     "choices": "Choice[]",
-    "dependentEventIds": "string[]",
-    "dependentChoiceIds": "string[]",
+    "sources": "Source[]",
     "trigger": "Trigger"
+},
+
+
+// Source
+{
+    "type": "event",
+    "id": "Guid"
+},
+{
+    "type": "choice",
+    "id": "Guid"
+},
+{
+    "type": "item",
+    "id": "Guid"
+}
+{
+    "type": "status",
+    "id": "Guid"
 }
 // Choice
 {
     "id": "Guid",
     "text": "string",
-    "dependentEventIds": "string[]",
-    "dependentChoiceIds": "string[]",
+    "sources": "Source[]",
     "results": "Result[]"
 }
 //Result
@@ -50,8 +67,7 @@
     "military" : {
         "min": "int",
         "max": "int"
-    },
-    "items" : "ItemId[]"
+    }
 }
 
 //attributes 
@@ -63,4 +79,12 @@
     "approval": "int min 0, int max 20",
     "nobles": "int min 0, int max 20",
     "diplomacy": "int min 0, int max 20",
+}
+
+// Status
+{
+    "id": "Guid",
+    "name": "string",
+    "Prerequisites": "Trigger[]",
+    "optionalSources": "Source[]",
 }
