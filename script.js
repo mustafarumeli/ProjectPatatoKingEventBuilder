@@ -30,6 +30,8 @@ let allEvents = [];
 let allChoices = [];
 let currentItem = null;
 let allItems = [];
+let currentStatus = null;
+let allStatus = [];
 
 // Make functions globally accessible
 window.hideTreeModal = function() {
@@ -78,6 +80,36 @@ window.hideItemModal = function() {
     }
 };
 
+window.showStatusModal = function() {
+    const modal = document.getElementById('statusModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.style.display = 'flex';
+        clearStatusForm();
+        
+        // Initialize autocomplete for status modal inputs
+        initializeAutocomplete('statusEventSources', allEvents, 'event');
+        initializeAutocomplete('statusChoiceSources', allChoices, 'choice');
+        initializeAutocomplete('statusItemSources', allItems, 'item');
+        
+        // Add event listeners to prerequisite inputs
+        const prerequisiteInputs = document.querySelectorAll('#prerequisitesContainer input[data-attribute]');
+        prerequisiteInputs.forEach(input => {
+            input.addEventListener('input', updateStatusPreview);
+        });
+    }
+};
+
+window.hideStatusModal = function() {
+    const modal = document.getElementById('statusModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
+};
+
 window.exportEvent = function(index) {
  
     
@@ -96,9 +128,8 @@ window.exportEvent = function(index) {
             return;
         }
         
-        // Collect all events in the dependency tree
+        
         const eventTree = collectEventTree(rootEvent, allEvents);
-        console.log('eventTree:', eventTree);
         
         // Check for duplicates (should not happen due to Map usage, but good to verify)
         const eventIds = eventTree.map(event => event.id);
@@ -109,9 +140,7 @@ window.exportEvent = function(index) {
             console.warn('Duplicates detected in event tree - this should not happen!');
             const duplicateIds = eventIds.filter((id, index) => eventIds.indexOf(id) !== index);
             console.warn('Duplicate IDs:', duplicateIds);
-        } else {
-            console.log(`Event tree validated: ${eventTree.length} unique events, no duplicates found`);
-        }
+        } 
         
         // Create export data structure
         const exportData = {
@@ -346,6 +375,23 @@ window.toggleItemsContainer = function() {
     }
 };
 
+window.toggleStatusContainer = function() {
+    const content = document.querySelector('.status-content');
+    const icon = content?.parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
+    }
+};
+
 window.toggleEventBuilder = function() {
     const content = document.querySelector('.event-builder-content');
     const icon = content?.parentElement.querySelector('.collapse-icon');
@@ -403,6 +449,22 @@ window.collapseAllContainers = function() {
     if (itemsContent && itemsIcon) {
         itemsContent.style.display = 'none';
         itemsIcon.textContent = '+';
+    }
+    
+    // Collapse Status
+    const statusContent = document.querySelector('.status-content');
+    const statusIcon = statusContent?.parentElement.querySelector('.collapse-icon');
+    if (statusContent && statusIcon) {
+        statusContent.style.display = 'none';
+        statusIcon.textContent = '+';
+    }
+    
+    // Collapse Event Ideas
+    const eventIdeasContent = document.querySelector('.event-ideas-content');
+    const eventIdeasIcon = eventIdeasContent?.parentElement.querySelector('.collapse-icon');
+    if (eventIdeasContent && eventIdeasIcon) {
+        eventIdeasContent.style.display = 'none';
+        eventIdeasIcon.textContent = '+';
     }
     
     // Collapse Reference Lists
@@ -489,7 +551,8 @@ function parseCommaSeparatedIds(input) {
 function getSelectedValues(inputId) {
     const selected = selectedDependencies.events.get(inputId) || 
                     selectedDependencies.choices.get(inputId) || 
-                    selectedDependencies.items.get(inputId);
+                    selectedDependencies.items.get(inputId) ||
+                    selectedDependencies.status.get(inputId);
     return selected ? Array.from(selected) : [];
 }
 
@@ -498,14 +561,22 @@ function getSelectedValuesFromElement(inputElement) {
     
     // Find the selected container for this input
     const container = inputElement.parentElement.parentElement;
-    const eventSelected = container.querySelector('.choice-dependent-events-selected');
-    const choiceSelected = container.querySelector('.choice-dependent-choices-selected');
     
     let selectedContainer;
-    if (inputElement.classList.contains('choice-dependent-events')) {
-        selectedContainer = eventSelected;
+    if (inputElement.classList.contains('choice-source-events')) {
+        selectedContainer = container.querySelector('.choice-source-events-selected');
+    } else if (inputElement.classList.contains('choice-source-choices')) {
+        selectedContainer = container.querySelector('.choice-source-choices-selected');
+    } else if (inputElement.classList.contains('choice-source-status')) {
+        selectedContainer = container.querySelector('.choice-source-status-selected');
+    } else if (inputElement.classList.contains('choice-source-items')) {
+        selectedContainer = container.querySelector('.choice-source-items-selected');
+    } else if (inputElement.classList.contains('choice-dependent-events')) {
+        // Backward compatibility
+        selectedContainer = container.querySelector('.choice-dependent-events-selected');
     } else if (inputElement.classList.contains('choice-dependent-choices')) {
-        selectedContainer = choiceSelected;
+        // Backward compatibility
+        selectedContainer = container.querySelector('.choice-dependent-choices-selected');
     }
     
     if (!selectedContainer) return [];
@@ -578,6 +649,7 @@ function processPendingValuesFromElement(input, items, type, selectedContainer, 
 function updateReferenceLists() {
     updateEventsList();
     updateChoicesList();
+    updateStatusReferenceList();
     updateDependencySelects();
 }
 
@@ -613,22 +685,51 @@ function updateChoicesList() {
     ).join('');
 }
 
+function updateStatusReferenceList() {
+    const statusListContainer = document.getElementById('statusReferenceList');
+    
+    if (allStatus.length === 0) {
+        statusListContainer.innerHTML = '<div class="text-gray-400 text-sm">No status created yet</div>';
+        return;
+    }
+    
+    statusListContainer.innerHTML = allStatus.map(status => 
+        `<div class="py-2 px-3 bg-gray-600 rounded mb-2 border border-gray-500">
+            <div class="text-cyan-200 text-sm font-medium mb-1">${status.name}</div>
+            <div class="text-gray-400 text-xs font-mono break-all">${status.id}</div>
+        </div>`
+    ).join('');
+}
+
 // Remove the old getItemsList function as it's now defined above with the new implementation
 
 function updateDependencySelects() {
     // Initialize autocomplete for main dependency inputs
     initializeAutocomplete('dependentEventIds', allEvents, 'event');
     initializeAutocomplete('dependentChoiceIds', allChoices, 'choice');
+    initializeAutocomplete('dependentStatusIds', allStatus, 'status');
     initializeAutocomplete('triggerItems', allItems, 'item');
     
-    // Initialize autocomplete for choice dependency inputs
+    // Initialize autocomplete for choice source inputs
     const choiceElements = document.querySelectorAll('.choice-item');
     choiceElements.forEach(choiceElement => {
-        const eventInput = choiceElement.querySelector('.choice-dependent-events');
-        const choiceInput = choiceElement.querySelector('.choice-dependent-choices');
+        // New source-based inputs
+        const eventInput = choiceElement.querySelector('.choice-source-events');
+        const choiceInput = choiceElement.querySelector('.choice-source-choices');
+        const statusInput = choiceElement.querySelector('.choice-source-status');
+        const itemInput = choiceElement.querySelector('.choice-source-items');
         
         if (eventInput) initializeAutocompleteForElement(eventInput, allEvents, 'event');
         if (choiceInput) initializeAutocompleteForElement(choiceInput, allChoices, 'choice');
+        if (statusInput) initializeAutocompleteForElement(statusInput, allStatus, 'status');
+        if (itemInput) initializeAutocompleteForElement(itemInput, allItems, 'item');
+        
+        // Backward compatibility for old class names
+        const oldEventInput = choiceElement.querySelector('.choice-dependent-events');
+        const oldChoiceInput = choiceElement.querySelector('.choice-dependent-choices');
+        
+        if (oldEventInput) initializeAutocompleteForElement(oldEventInput, allEvents, 'event');
+        if (oldChoiceInput) initializeAutocompleteForElement(oldChoiceInput, allChoices, 'choice');
     });
 }
 
@@ -636,7 +737,8 @@ function updateDependencySelects() {
 const selectedDependencies = {
     events: new Map(),
     choices: new Map(),
-    items: new Map()
+    items: new Map(),
+    status: new Map()
 };
 
 function initializeAutocomplete(inputId, items, type) {
@@ -655,8 +757,20 @@ function initializeAutocomplete(inputId, items, type) {
 function initializeAutocompleteForElement(input, items, type) {
     if (!input) return;
     
-    const dropdown = input.parentElement.querySelector(`.choice-dependent-${type}s-dropdown`);
-    const selectedContainer = input.parentElement.parentElement.querySelector(`.choice-dependent-${type}s-selected`);
+    // Try new source-based class names first, then fall back to old dependent class names
+    const sourceTypeForClass = type === 'status' ? 'status' : type + 's';
+    const dependentTypeForClass = type === 'status' ? 'status' : type + 's';
+    
+    let dropdown = input.parentElement.querySelector(`.choice-source-${sourceTypeForClass}-dropdown`);
+    let selectedContainer = input.parentElement.parentElement.querySelector(`.choice-source-${sourceTypeForClass}-selected`);
+    
+    // Fallback to old class names for backward compatibility
+    if (!dropdown) {
+        dropdown = input.parentElement.querySelector(`.choice-dependent-${dependentTypeForClass}-dropdown`);
+    }
+    if (!selectedContainer) {
+        selectedContainer = input.parentElement.parentElement.querySelector(`.choice-dependent-${dependentTypeForClass}-selected`);
+    }
     
     const uniqueId = `choice-${Date.now()}-${Math.random()}`;
     
@@ -670,8 +784,11 @@ function initializeAutocompleteForElement(input, items, type) {
 }
 
 function setupAutocompleteEvents(input, dropdown, selectedContainer, items, type, uniqueId) {
-    if (!selectedDependencies[type + 's'].has(uniqueId)) {
-        selectedDependencies[type + 's'].set(uniqueId, new Set());
+    // Map type to the correct key in selectedDependencies
+    const dependencyKey = type === 'status' ? 'status' : type + 's';
+    
+    if (!selectedDependencies[dependencyKey].has(uniqueId)) {
+        selectedDependencies[dependencyKey].set(uniqueId, new Set());
     }
     
     input.addEventListener('input', (e) => {
@@ -693,7 +810,9 @@ function setupAutocompleteEvents(input, dropdown, selectedContainer, items, type
 }
 
 function showAutocompleteResults(dropdown, items, query, type, uniqueId, selectedContainer) {
-    const selected = selectedDependencies[type + 's'].get(uniqueId);
+    // Map type to the correct key in selectedDependencies
+    const dependencyKey = type === 'status' ? 'status' : type + 's';
+    const selected = selectedDependencies[dependencyKey].get(uniqueId);
     const filtered = items.filter(item => {
         let text;
         if (type === 'event') {
@@ -701,6 +820,8 @@ function showAutocompleteResults(dropdown, items, query, type, uniqueId, selecte
         } else if (type === 'choice') {
             text = item.text;
         } else if (type === 'item') {
+            text = item.name;
+        } else if (type === 'status') {
             text = item.name;
         }
         return text.toLowerCase().includes(query) && !selected.has(item.id);
@@ -725,6 +846,12 @@ function showAutocompleteResults(dropdown, items, query, type, uniqueId, selecte
                 const rarityNames = { '0': 'Common', '1': 'Uncommon', '2': 'Rare', '3': 'Epic', '4': 'Legendary' };
                 const rarityName = rarityNames[item.rarity] || 'Unknown';
                 subtitle = `${rarityName} - ${item.price} coins`;
+            } else if (type === 'status') {
+                text = item.name;
+                // Add prerequisites and sources count as subtitle for status
+                const prereqCount = item.Prerequisites ? item.Prerequisites.length : 0;
+                const sourcesCount = item.optionalSources ? item.optionalSources.length : 0;
+                subtitle = `${prereqCount} prerequisite(s), ${sourcesCount} source(s)`;
             }
             
             div.className = 'p-3 hover:bg-gray-600 cursor-pointer text-sm border-b border-gray-600 last:border-b-0';
@@ -747,7 +874,9 @@ function showAutocompleteResults(dropdown, items, query, type, uniqueId, selecte
 }
 
 function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
-    const selected = selectedDependencies[type + 's'].get(uniqueId);
+    // Map type to the correct key in selectedDependencies
+    const dependencyKey = type === 'status' ? 'status' : type + 's';
+    const selected = selectedDependencies[dependencyKey].get(uniqueId);
     selected.add(item.id);
     
     // Create selected item badge
@@ -763,6 +892,9 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
     } else if (type === 'item') {
         text = item.name;
         colorClass = 'bg-cyan-600';
+    } else if (type === 'status') {
+        text = item.name;
+        colorClass = 'bg-teal-600';
     }
     
     badge.className = `${colorClass} text-white px-2 py-1 rounded text-xs flex items-center gap-1`;
@@ -774,6 +906,11 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
     
     selectedContainer.appendChild(badge);
     dropdown.classList.add('hidden');
+    
+    // Update status preview if we're in the status modal
+    if (selectedContainer && selectedContainer.id && selectedContainer.id.startsWith('status')) {
+        updateStatusPreview();
+    }
     
     // If selecting a choice, also add its parent event to dependent events
     if (type === 'choice' && item.parentEventId) {
@@ -840,12 +977,23 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
 }
 
 function removeSelectedItem(itemId, type, uniqueId, buttonElement) {
-    const selected = selectedDependencies[type + 's'].get(uniqueId);
+    // Map type to the correct key in selectedDependencies
+    const dependencyKey = type === 'status' ? 'status' : type + 's';
+    const selected = selectedDependencies[dependencyKey].get(uniqueId);
     selected.delete(itemId);
     
     // Remove the badge
     const badge = buttonElement.closest('div');
+    const selectedContainer = badge.parentElement;
     badge.remove();
+    
+    // Update status preview if we're in the status modal
+    if (selectedContainer && selectedContainer.id && selectedContainer.id.startsWith('status')) {
+        // Use setTimeout to ensure DOM is updated before preview update
+        setTimeout(() => {
+            updateStatusPreview();
+        }, 0);
+    }
 }
 
 function refreshReferenceLists() {
@@ -920,27 +1068,62 @@ function addChoice() {
                 <textarea class="choice-text w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all resize-none" placeholder="What does this choice say?" rows="2" required></textarea>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-blue-300">Dependent Events</label>
-                    <div class="relative">
-                        <input type="text" class="choice-dependent-events w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
-                               placeholder="Type event name..." autocomplete="off">
-                        <div class="choice-dependent-events-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+            <div class="space-y-4">
+                <h5 class="text-md font-medium text-cyan-400 border-b border-gray-500 pb-2">Sources</h5>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Event Sources -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-blue-300">Event Sources</label>
+                        <div class="relative">
+                            <input type="text" class="choice-source-events w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" 
+                                   placeholder="Type event name..." autocomplete="off">
+                            <div class="choice-source-events-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                        <div class="choice-source-events-selected flex flex-wrap gap-1">
                         </div>
                     </div>
-                    <div class="choice-dependent-events-selected flex flex-wrap gap-1">
+                    
+                    <!-- Choice Sources -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-green-300">Choice Sources</label>
+                        <div class="relative">
+                            <input type="text" class="choice-source-choices w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all" 
+                                   placeholder="Type choice text..." autocomplete="off">
+                            <div class="choice-source-choices-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                        <div class="choice-source-choices-selected flex flex-wrap gap-1">
+                        </div>
                     </div>
                 </div>
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-green-300">Dependent Choices</label>
-                    <div class="relative">
-                        <input type="text" class="choice-dependent-choices w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all" 
-                               placeholder="Type choice text..." autocomplete="off">
-                        <div class="choice-dependent-choices-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Status Sources -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-cyan-300">Status Sources</label>
+                        <div class="relative">
+                            <input type="text" class="choice-source-status w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all" 
+                                   placeholder="Type status name..." autocomplete="off">
+                            <div class="choice-source-status-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                        <div class="choice-source-status-selected flex flex-wrap gap-1">
                         </div>
                     </div>
-                    <div class="choice-dependent-choices-selected flex flex-wrap gap-1">
+                    
+                    <!-- Item Sources -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-purple-300">Item Sources</label>
+                        <div class="relative">
+                            <input type="text" class="choice-source-items w-full px-4 py-3 bg-gray-600 border border-gray-500 rounded-lg text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
+                                   placeholder="Type item name..." autocomplete="off">
+                            <div class="choice-source-items-dropdown absolute z-10 w-full bg-gray-600 border border-gray-500 rounded-lg mt-1 max-h-32 overflow-y-auto hidden">
+                            </div>
+                        </div>
+                        <div class="choice-source-items-selected flex flex-wrap gap-1">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -958,6 +1141,17 @@ function addChoice() {
     `;
     
     choicesContainer.appendChild(choiceDiv);
+    
+    // Initialize autocomplete for the new choice source inputs
+    const eventInput = choiceDiv.querySelector('.choice-source-events');
+    const choiceInput = choiceDiv.querySelector('.choice-source-choices');
+    const statusInput = choiceDiv.querySelector('.choice-source-status');
+    const itemInput = choiceDiv.querySelector('.choice-source-items');
+    
+    if (eventInput) initializeAutocompleteForElement(eventInput, allEvents, 'event');
+    if (choiceInput) initializeAutocompleteForElement(choiceInput, allChoices, 'choice');
+    if (statusInput) initializeAutocompleteForElement(statusInput, allStatus, 'status');
+    if (itemInput) initializeAutocompleteForElement(itemInput, allItems, 'item');
     
     // Update reference lists when choice is added
     setTimeout(() => refreshReferenceLists(), 100);
@@ -1089,6 +1283,129 @@ function generateEventJsonSilent() {
     return event;
 }
 
+function generateEventSources() {
+    const sources = [];
+    
+    // Get event sources
+    const eventIds = getSelectedValues('dependentEventIds');
+    eventIds.forEach(id => {
+        sources.push({
+            type: "event",
+            id: id
+        });
+    });
+    
+    // Get choice sources
+    const choiceIds = getSelectedValues('dependentChoiceIds');
+    choiceIds.forEach(id => {
+        sources.push({
+            type: "choice",
+            id: id
+        });
+    });
+    
+    // Get status sources
+    const statusIds = getSelectedValues('dependentStatusIds');
+    statusIds.forEach(id => {
+        sources.push({
+            type: "status",
+            id: id
+        });
+    });
+    
+    // Get item sources (from trigger items, moving to sources)
+    const itemIds = getSelectedValues('triggerItems');
+    itemIds.forEach(id => {
+        sources.push({
+            type: "item",
+            id: id
+        });
+    });
+    
+    return sources;
+}
+
+// Helper functions for backward compatibility with old schema
+function getEventDependencies(event) {
+    // Handle new sources format
+    if (event.sources) {
+        const eventDeps = event.sources.filter(source => source.type === 'event').map(source => source.id);
+        return eventDeps;
+    }
+    // Handle old format
+    const oldDeps = event.dependentEventIds || [];
+    return oldDeps;
+}
+
+function getChoiceDependencies(event) {
+    // Handle new sources format
+    if (event.sources) {
+        return event.sources.filter(source => source.type === 'choice').map(source => source.id);
+    }
+    // Handle old format
+    return event.dependentChoiceIds || [];
+}
+
+function getStatusDependencies(event) {
+    // Handle new sources format
+    if (event.sources) {
+        return event.sources.filter(source => source.type === 'status').map(source => source.id);
+    }
+    // Handle old format
+    return event.dependentStatusIds || [];
+}
+
+function getItemDependencies(event) {
+    // Handle new sources format
+    if (event.sources) {
+        return event.sources.filter(source => source.type === 'item').map(source => source.id);
+    }
+    // Handle old format (from trigger.items)
+    return (event.trigger && event.trigger.items) || [];
+}
+
+function generateChoiceSources(choiceItem) {
+    const sources = [];
+    
+    // Get event sources for this choice
+    const eventIds = getSelectedValuesFromElement(choiceItem.querySelector('.choice-source-events'));
+    eventIds.forEach(id => {
+        sources.push({
+            type: "event",
+            id: id
+        });
+    });
+    
+    // Get choice sources for this choice
+    const choiceIds = getSelectedValuesFromElement(choiceItem.querySelector('.choice-source-choices'));
+    choiceIds.forEach(id => {
+        sources.push({
+            type: "choice",
+            id: id
+        });
+    });
+    
+    // Get status sources for this choice
+    const statusIds = getSelectedValuesFromElement(choiceItem.querySelector('.choice-source-status'));
+    statusIds.forEach(id => {
+        sources.push({
+            type: "status",
+            id: id
+        });
+    });
+    
+    // Get item sources for this choice
+    const itemIds = getSelectedValuesFromElement(choiceItem.querySelector('.choice-source-items'));
+    itemIds.forEach(id => {
+        sources.push({
+            type: "item",
+            id: id
+        });
+    });
+    
+    return sources;
+}
+
 function generateEventJson() {
     const eventTitle = document.getElementById('eventTitle').value;
     const eventDescription = document.getElementById('eventDescription').value;
@@ -1104,8 +1421,7 @@ function generateEventJson() {
         title: eventTitle,
         description: eventDescription,
         choices: [],
-        dependentEventIds: getSelectedValues('dependentEventIds'),
-        dependentChoiceIds: getSelectedValues('dependentChoiceIds'),
+        sources: generateEventSources(),
         trigger: generateTrigger()
     };
     
@@ -1115,8 +1431,7 @@ function generateEventJson() {
         const choice = {
             id: generateGuid(),
             text: choiceItem.querySelector('.choice-text').value,
-            dependentEventIds: getSelectedValuesFromElement(choiceItem.querySelector('.choice-dependent-events')),
-            dependentChoiceIds: getSelectedValuesFromElement(choiceItem.querySelector('.choice-dependent-choices')),
+            sources: generateChoiceSources(choiceItem),
             results: []
         };
         
@@ -1158,11 +1473,7 @@ function generateTrigger() {
         }
     });
     
-    // Get selected items from the autocomplete system
-    const selectedItems = getSelectedValues('triggerItems');
-    if (selectedItems.length > 0) {
-        trigger.items = selectedItems;
-    }
+    // Items are now handled in the sources array, not in triggers
     
     return trigger;
 }
@@ -1229,14 +1540,20 @@ async function loadEvents() {
         try {
             await loadEventsFromFirebase();
             await loadItemsFromFirebase();
+            await loadStatusFromFirebase();
+            await loadEventIdeasFromFirebase();
         } catch (error) {
             console.error('Firebase loading failed, falling back to localStorage:', error);
             loadSavedEvents();
             loadItemsLocally();
+            loadStatusLocally();
+            loadEventIdeasLocally();
         }
     } else {
         loadSavedEvents();
         loadItemsLocally();
+        loadStatusLocally();
+        loadEventIdeasLocally();
     }
 }
 
@@ -1249,37 +1566,34 @@ function findDependentEvents(savedEvents) {
     // Collect all event IDs that are dependencies of other events
     savedEvents.forEach(event => {
         // Add direct event dependencies
-        if (event.dependentEventIds) {
-            event.dependentEventIds.forEach(depId => {
-                if (allEventIds.has(depId)) {
-                    dependentEventIds.add(depId);
-                }
-            });
-        }
+        const eventDeps = getEventDependencies(event);
+        eventDeps.forEach(depId => {
+            if (allEventIds.has(depId)) {
+                dependentEventIds.add(depId);
+            }
+        });
         
         // Add choice dependencies (events that contain dependent choices)
-        if (event.dependentChoiceIds) {
-            event.dependentChoiceIds.forEach(choiceId => {
-                // Find which event contains this choice
-                const parentEvent = savedEvents.find(e => 
-                    e.choices && e.choices.some(choice => choice.id === choiceId)
-                );
-                if (parentEvent) {
-                    dependentEventIds.add(parentEvent.id);
-                }
-            });
-        }
+        const choiceDeps = getChoiceDependencies(event);
+        choiceDeps.forEach(choiceId => {
+            // Find which event contains this choice
+            const parentEvent = savedEvents.find(e => 
+                e.choices && e.choices.some(choice => choice.id === choiceId)
+            );
+            if (parentEvent) {
+                dependentEventIds.add(parentEvent.id);
+            }
+        });
         
         // Add events referenced by choice dependencies
         if (event.choices) {
             event.choices.forEach(choice => {
-                if (choice.dependentEventIds) {
-                    choice.dependentEventIds.forEach(depId => {
-                        if (allEventIds.has(depId)) {
-                            dependentEventIds.add(depId);
-                        }
-                    });
-                }
+                const choiceEventDeps = getEventDependencies(choice);
+                choiceEventDeps.forEach(depId => {
+                    if (allEventIds.has(depId)) {
+                        dependentEventIds.add(depId);
+                    }
+                });
             });
         }
     });
@@ -1482,6 +1796,7 @@ function loadEventToForm(index) {
     document.getElementById('eventDescription').value = event.description;
     setSelectedValues('dependentEventIds', event.dependentEventIds);
     setSelectedValues('dependentChoiceIds', event.dependentChoiceIds);
+    setSelectedValues('dependentStatusIds', event.dependentStatusIds);
     
     // Load trigger data
     if (event.trigger) {
@@ -1509,6 +1824,19 @@ function loadEventToForm(index) {
         const lastChoice = choiceElements[choiceElements.length - 1];
         
         lastChoice.querySelector('.choice-text').value = choice.text;
+        // Load sources using backward compatibility helper functions
+        const eventIds = getEventDependencies({sources: choice.sources, dependentEventIds: choice.dependentEventIds});
+        const choiceIds = getChoiceDependencies({sources: choice.sources, dependentChoiceIds: choice.dependentChoiceIds});
+        const statusIds = getStatusDependencies({sources: choice.sources, dependentStatusIds: choice.dependentStatusIds});
+        const itemIds = getItemDependencies({sources: choice.sources, trigger: {items: choice.dependentItemIds}});
+        
+        // Set values for new source-based inputs
+        setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-events'), eventIds);
+        setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-choices'), choiceIds);
+        setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-status'), statusIds);
+        setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-items'), itemIds);
+        
+        // Backward compatibility for old class names
         setSelectedValuesFromElement(lastChoice.querySelector('.choice-dependent-events'), choice.dependentEventIds);
         setSelectedValuesFromElement(lastChoice.querySelector('.choice-dependent-choices'), choice.dependentChoiceIds);
         
@@ -1549,45 +1877,44 @@ function collectEventTree(rootEvent, allSavedEvents) {
     });
     
     function collectDependencies(event, visited = new Set()) {
-        if (visited.has(event.id)) return; // Prevent infinite loops
+        if (visited.has(event.id)) {
+            return; // Prevent infinite loops
+        }
         visited.add(event.id);
         
         // Add current event to collection
         collectedEvents.set(event.id, event);
         
-        // Collect forward dependencies (events this event depends on)
-        if (event.dependentEventIds) {
-            event.dependentEventIds.forEach(depId => {
-                const depEvent = eventMap.get(depId);
-                if (depEvent && !visited.has(depId)) {
-                    collectDependencies(depEvent, visited);
-                }
-            });
-        }
+        // Collect forward dependencies (events this event depends on) - use helper for backward compatibility
+        const eventDependencies = getEventDependencies(event);
+        eventDependencies.forEach(depId => {
+            const depEvent = eventMap.get(depId);
+            if (depEvent && !visited.has(depId)) {
+                collectDependencies(depEvent, visited);
+            }
+        });
         
-        // Collect events that contain dependent choices
-        if (event.dependentChoiceIds) {
-            event.dependentChoiceIds.forEach(choiceId => {
-                const parentEvent = allSavedEvents.find(e => 
-                    e.choices && e.choices.some(choice => choice.id === choiceId)
-                );
-                if (parentEvent && !visited.has(parentEvent.id)) {
-                    collectDependencies(parentEvent, visited);
-                }
-            });
-        }
+        // Collect events that contain dependent choices - use helper for backward compatibility
+        const choiceDependencies = getChoiceDependencies(event);
+        choiceDependencies.forEach(choiceId => {
+            const parentEvent = allSavedEvents.find(e => 
+                e.choices && e.choices.some(choice => choice.id === choiceId)
+            );
+            if (parentEvent && !visited.has(parentEvent.id)) {
+                collectDependencies(parentEvent, visited);
+            }
+        });
         
-        // Collect dependencies from choices
+        // Collect dependencies from choices - use helper for backward compatibility
         if (event.choices) {
             event.choices.forEach(choice => {
-                if (choice.dependentEventIds) {
-                    choice.dependentEventIds.forEach(depId => {
-                        const depEvent = eventMap.get(depId);
-                        if (depEvent && !visited.has(depId)) {
-                            collectDependencies(depEvent, visited);
-                        }
-                    });
-                }
+                const choiceEventDeps = getEventDependencies(choice);
+                choiceEventDeps.forEach(depId => {
+                    const depEvent = eventMap.get(depId);
+                    if (depEvent && !visited.has(depId)) {
+                        collectDependencies(depEvent, visited);
+                    }
+                });
             });
         }
         
@@ -1595,27 +1922,30 @@ function collectEventTree(rootEvent, allSavedEvents) {
         allSavedEvents.forEach(otherEvent => {
             if (otherEvent.id === event.id) return; // Skip self
             
-            // Check if other event depends on current event
+            // Check if other event depends on current event - use helpers for backward compatibility
             let dependsOnCurrent = false;
             
             // Direct dependency
-            if (otherEvent.dependentEventIds && otherEvent.dependentEventIds.includes(event.id)) {
+            const otherEventDeps = getEventDependencies(otherEvent);
+            if (otherEventDeps.includes(event.id)) {
                 dependsOnCurrent = true;
             }
             
             // Choice dependency
             if (otherEvent.choices) {
                 otherEvent.choices.forEach(choice => {
-                    if (choice.dependentEventIds && choice.dependentEventIds.includes(event.id)) {
+                    const choiceEventDeps = getEventDependencies(choice);
+                    if (choiceEventDeps.includes(event.id)) {
                         dependsOnCurrent = true;
                     }
                 });
             }
             
             // Choice container dependency
-            if (otherEvent.dependentChoiceIds && event.choices) {
+            const otherChoiceDeps = getChoiceDependencies(otherEvent);
+            if (event.choices) {
                 event.choices.forEach(choice => {
-                    if (otherEvent.dependentChoiceIds.includes(choice.id)) {
+                    if (otherChoiceDeps.includes(choice.id)) {
                         dependsOnCurrent = true;
                     }
                 });
@@ -1631,7 +1961,8 @@ function collectEventTree(rootEvent, allSavedEvents) {
     collectDependencies(rootEvent);
     
     // Return array of collected events
-    return Array.from(collectedEvents.values());
+    const result = Array.from(collectedEvents.values());
+    return result;
 }
 
 function exportAllData() {
@@ -1737,29 +2068,21 @@ function generateItemJson() {
 }
 
 function generateItem() {
-    console.log('generateItem called');
     const item = generateItemJson();
-    console.log('Generated item from generateItemJson:', item);
     
     if (item) {
         currentItem = item;
-        console.log('Set currentItem to:', currentItem);
         
         // Show the JSON in console for debugging
-        console.log('Generated Item:', JSON.stringify(item, null, 2));
         
         // Update preview with the generated item
         updateItemPreview();
         
-        console.log('Firebase check in generateItem - typeof firebase:', typeof firebase);
-        console.log('Firebase check in generateItem - firebase.apps.length:', firebase.apps ? firebase.apps.length : 'undefined');
         
         // Try Firebase first, fallback to local storage
         if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-            console.log('Using Firebase to save generated item');
             saveItemToFirebase(item.item);
         } else {
-            console.log('Using local storage to save generated item');
             // Automatically add to items list locally
             allItems.push(item.item);
             updateItemsDisplay();
@@ -1768,8 +2091,6 @@ function generateItem() {
         
         // Close the modal after successful generation
         hideItemModal();
-    } else {
-        console.log('No item generated');
     }
 }
 
@@ -1786,20 +2107,14 @@ function copyItemJson() {
 }
 
 function addItemToList() {
-    console.log('addItemToList called');
     const item = currentItem || generateItemJson();
-    console.log('Item to add:', item);
     
     if (item) {
-        console.log('Firebase check - typeof firebase:', typeof firebase);
-        console.log('Firebase check - firebase.apps.length:', firebase.apps ? firebase.apps.length : 'undefined');
         
         // Try Firebase first, fallback to local storage
         if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-            console.log('Using Firebase to save item');
             saveItemToFirebase(item.item);
         } else {
-            console.log('Using local storage to save item');
             // Add to allItems array locally
             allItems.push(item.item);
             updateItemsDisplay();
@@ -1807,8 +2122,6 @@ function addItemToList() {
         }
         
         hideItemModal();
-    } else {
-        console.log('No item to add');
     }
 }
 
@@ -1951,14 +2264,16 @@ function buildEventTree(rootEvent, allSavedEvents, options = { showForward: true
     function findBackwardDependencies(targetEventId) {
         const backwardDeps = [];
         allSavedEvents.forEach(event => {
-            // Check if this event depends on the target event
-            if (event.dependentEventIds && event.dependentEventIds.includes(targetEventId)) {
+            // Check if this event depends on the target event - use helper for backward compatibility
+            const eventDeps = getEventDependencies(event);
+            if (eventDeps.includes(targetEventId)) {
                 backwardDeps.push(event);
             }
             // Check if any of this event's choices depend on the target event
             if (event.choices && options.includeChoices) {
                 event.choices.forEach(choice => {
-                    if (choice.dependentEventIds && choice.dependentEventIds.includes(targetEventId)) {
+                    const choiceEventDeps = getEventDependencies(choice);
+                    if (choiceEventDeps.includes(targetEventId)) {
                         backwardDeps.push({
                             ...event,
                             isChoiceDependency: true,
@@ -2049,9 +2364,10 @@ function buildEventTree(rootEvent, allSavedEvents, options = { showForward: true
             containedChoiceText: event.containedChoiceText || null
         };
         
-        // Add forward dependencies (events this event depends on)
-        if (options.showForward && event.dependentEventIds && event.dependentEventIds.length > 0) {
-            event.dependentEventIds.forEach(depId => {
+        // Add forward dependencies (events this event depends on) - use helper for backward compatibility
+        const eventDeps = getEventDependencies(event);
+        if (options.showForward && eventDeps.length > 0) {
+            eventDeps.forEach(depId => {
                 const depEvent = eventMap.get(depId);
                 if (depEvent) {
                     node.children.push(buildNode(depEvent, depth + 1, 'forward'));
@@ -2059,14 +2375,65 @@ function buildEventTree(rootEvent, allSavedEvents, options = { showForward: true
             });
         }
         
-        // Add events that contain dependent choices
-        if (options.showForward && event.dependentChoiceIds && event.dependentChoiceIds.length > 0) {
-            const eventsWithChoices = findEventsContainingChoices(event.dependentChoiceIds);
+        // Add events that contain dependent choices - use helper for backward compatibility
+        const choiceDeps = getChoiceDependencies(event);
+        if (options.showForward && choiceDeps.length > 0) {
+            const eventsWithChoices = findEventsContainingChoices(choiceDeps);
             eventsWithChoices.forEach(choiceEvent => {
                 // Only add if this event isn't already in the tree at this level
                 const existingChild = node.children.find(child => child.id === choiceEvent.id);
                 if (!existingChild) {
                     node.children.push(buildNode(choiceEvent, depth + 1, 'choice-container'));
+                }
+            });
+        }
+        
+        // Add status dependencies - use helper for backward compatibility
+        const statusDeps = getStatusDependencies(event);
+        if (options.showForward && statusDeps.length > 0) {
+            statusDeps.forEach(statusId => {
+                const status = allStatus.find(s => s.id === statusId);
+                if (status) {
+                    // Only add if this status isn't already in the tree at this level
+                    const existingChild = node.children.find(child => child.id === status.id && child.isStatus);
+                    if (!existingChild) {
+                        node.children.push({
+                            id: status.id,
+                            title: status.name,
+                            description: `Status: ${status.name}`,
+                            children: [],
+                            parents: [],
+                            isCircular: false,
+                            direction: 'forward',
+                            isStatus: true,
+                            statusData: status
+                        });
+                    }
+                }
+            });
+        }
+        
+        // Add item dependencies - use helper for backward compatibility
+        const itemDeps = getItemDependencies(event);
+        if (options.showForward && itemDeps.length > 0) {
+            itemDeps.forEach(itemId => {
+                const item = allItems.find(i => i.id === itemId);
+                if (item) {
+                    // Only add if this item isn't already in the tree at this level
+                    const existingChild = node.children.find(child => child.id === item.id && child.isItem);
+                    if (!existingChild) {
+                        node.children.push({
+                            id: item.id,
+                            title: item.name,
+                            description: `Item: ${item.name}`,
+                            children: [],
+                            parents: [],
+                            isCircular: false,
+                            direction: 'forward',
+                            isItem: true,
+                            itemData: item
+                        });
+                    }
                 }
             });
         }
@@ -2125,10 +2492,13 @@ function generateTreeSVG(treeData, rootTitle) {
     
     calculateLevels(treeData);
     
+    // For now, allow duplicate status/item nodes to ensure all connections are visible
+    // TODO: Implement proper deduplication that preserves all connection lines
+    
     // Remove empty levels and adjust indices
     const compactLevels = levels.filter(level => level && level.length > 0);
     const maxWidth = Math.max(...compactLevels.map(level => level.length)) * (nodeWidth + nodeSpacing);
-    const legendHeight = 140; // Increased for larger legend
+    const legendHeight = 170; // Increased for status and item legend entries
     const totalHeight = compactLevels.length * levelHeight + 60 + legendHeight;
     
     let svg = `<svg width="${Math.max(1000, maxWidth)}" height="${totalHeight}" xmlns="http://www.w3.org/2000/svg">`;
@@ -2214,6 +2584,8 @@ function generateTreeSVG(treeData, rootTitle) {
             const isChoice = node.isChoice;
             const isChoiceDependency = node.isChoiceDependency;
             const isChoiceContainer = node.isChoiceContainer;
+            const isStatus = node.isStatus;
+            const isItem = node.isItem;
             const isBackward = node.direction === 'backward';
             
             let fillColor, strokeColor;
@@ -2223,6 +2595,12 @@ function generateTreeSVG(treeData, rootTitle) {
             } else if (isCircular) {
                 fillColor = '#dc2626';
                 strokeColor = '#ef4444';
+            } else if (isStatus) {
+                fillColor = '#0891b2';
+                strokeColor = '#06b6d4';
+            } else if (isItem) {
+                fillColor = '#ea580c';
+                strokeColor = '#f97316';
             } else if (isChoice) {
                 fillColor = '#059669';
                 strokeColor = '#10b981';
@@ -2257,6 +2635,10 @@ function generateTreeSVG(treeData, rootTitle) {
             // Add description or special indicators
             if (isCircular) {
                 svg += `<text x="${pos.x + nodeWidth / 2}" y="${pos.y + 40}" text-anchor="middle" fill="#fca5a5" font-size="10">Circular Reference</text>`;
+            } else if (isStatus) {
+                svg += `<text x="${pos.x + nodeWidth / 2}" y="${pos.y + 40}" text-anchor="middle" fill="#cffafe" font-size="10">Status Requirement</text>`;
+            } else if (isItem) {
+                svg += `<text x="${pos.x + nodeWidth / 2}" y="${pos.y + 40}" text-anchor="middle" fill="#fed7aa" font-size="10">Item Requirement</text>`;
             } else if (isChoice) {
                 svg += `<text x="${pos.x + nodeWidth / 2}" y="${pos.y + 40}" text-anchor="middle" fill="#d1fae5" font-size="10">Choice Dependency</text>`;
             } else if (isChoiceDependency) {
@@ -2319,8 +2701,17 @@ function generateTreeSVG(treeData, rootTitle) {
     svg += `<rect x="290" y="${legendY + 55}" width="15" height="15" fill="#dc2626" rx="2"/>`;
     svg += `<text x="310" y="${legendY + 67}" fill="#d1d5db" font-size="11">Circular Reference</text>`;
     
+    // Third row - Status and Item requirements
+    // Status requirement
+    svg += `<rect x="30" y="${legendY + 80}" width="15" height="15" fill="#0891b2" rx="2"/>`;
+    svg += `<text x="50" y="${legendY + 92}" fill="#d1d5db" font-size="11">Status Requirement</text>`;
+    
+    // Item requirement
+    svg += `<rect x="180" y="${legendY + 80}" width="15" height="15" fill="#ea580c" rx="2"/>`;
+    svg += `<text x="200" y="${legendY + 92}" fill="#d1d5db" font-size="11">Item Requirement</text>`;
+    
     // Direction indicators
-    svg += `<text x="30" y="${legendY + 85}" fill="#9ca3af" font-size="10">Arrows: ↑ Forward deps, ↓ Backward deps (Reversed Layout)</text>`;
+    svg += `<text x="30" y="${legendY + 110}" fill="#9ca3af" font-size="10">Arrows: ↑ Forward deps, ↓ Backward deps (Reversed Layout)</text>`;
     
     svg += '</svg>';
     
@@ -2378,6 +2769,7 @@ function clearForm() {
     document.getElementById('eventDescription').value = '';
     document.getElementById('dependentEventIds').value = '';
     document.getElementById('dependentChoiceIds').value = '';
+    document.getElementById('dependentStatusIds').value = '';
     
     // Clear trigger fields
     const attributes = ['education', 'military', 'treasury', 'culture', 'approval', 'nobles', 'diplomacy'];
@@ -2470,6 +2862,23 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('itemRarity').addEventListener('change', updateItemPreview);
     document.getElementById('itemImage').addEventListener('input', updateItemPreview);
     
+    // Status modal event listeners
+    document.getElementById('createStatusBtn').addEventListener('click', showStatusModal);
+    document.getElementById('generateStatusBtn').addEventListener('click', generateStatus);
+    document.getElementById('copyStatusBtn').addEventListener('click', copyStatusJson);
+    
+    // Event Ideas modal event listeners
+    document.getElementById('createEventIdeaBtn').addEventListener('click', showEventIdeaModal);
+    document.getElementById('generateEventIdeaBtn').addEventListener('click', generateEventIdea);
+    document.getElementById('copyEventIdeaBtn').addEventListener('click', copyEventIdeaJson);
+    
+    // Event Ideas form input listeners for live preview
+    document.getElementById('eventIdeaName').addEventListener('input', updateEventIdeaPreview);
+    document.getElementById('eventIdeaDescription').addEventListener('input', updateEventIdeaPreview);
+    // addPrerequisiteBtn removed - now using static prerequisite inputs
+    
+    // Status form input listeners for live preview
+    document.getElementById('statusName').addEventListener('input', updateStatusPreview);
     
     // Modal event listeners
     document.querySelector('.close').addEventListener('click', hideLoadModal);
@@ -2527,6 +2936,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const loadModal = document.getElementById('loadModal');
         const treeModal = document.getElementById('treeModal');
         const itemModal = document.getElementById('itemModal');
+        const statusModal = document.getElementById('statusModal');
+        const eventIdeaModal = document.getElementById('eventIdeaModal');
         
         if (event.target === loadModal) {
             hideLoadModal();
@@ -2537,6 +2948,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target === itemModal) {
             hideItemModal();
         }
+        if (event.target === statusModal) {
+            hideStatusModal();
+        }
+        if (event.target === eventIdeaModal) {
+            hideEventIdeaModal();
+        }
     });
     
     // ESC key to close modals
@@ -2545,6 +2962,8 @@ document.addEventListener('DOMContentLoaded', function() {
             hideLoadModal();
             hideTreeModal();
             hideItemModal();
+            hideStatusModal();
+            hideEventIdeaModal();
         }
     });
     
@@ -2556,6 +2975,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize items display
     updateItemsDisplay();
+    
+    // Initialize event ideas display
+    updateEventIdeasDisplay();
     
     // Add initial choice
     addChoice();
@@ -2625,12 +3047,14 @@ async function loadEventsFromFirebase() {
                 if (key === 'test_connection') return;
                 
                 // Add Firebase key as firebaseKey for reference, keep original event ID
-                events.push({
+                const loadedEvent = {
                     ...event,
                     firebaseKey: key, // Store the Firebase auto-generated key for deletion
                     // Convert Firebase timestamp to readable format if needed
                     savedAt: event.savedAt || new Date(event.createdAt || Date.now()).toISOString()
-                });
+                };
+                
+                events.push(loadedEvent);
             });
             
             // Sort events by createdAt (most recent first)
@@ -2647,8 +3071,7 @@ async function loadEventsFromFirebase() {
             title: event.title,
             description: event.description,
             choices: event.choices || [],
-            dependentEventIds: event.dependentEventIds || [],
-            dependentChoiceIds: event.dependentChoiceIds || [],
+            sources: event.sources || [], 
             trigger: event.trigger || {}
         }));
         
@@ -2705,6 +3128,7 @@ function loadFirebaseEventToForm(eventId) {
     document.getElementById('eventDescription').value = event.description;
     setSelectedValues('dependentEventIds', event.dependentEventIds);
     setSelectedValues('dependentChoiceIds', event.dependentChoiceIds);
+    setSelectedValues('dependentStatusIds', event.dependentStatusIds);
     
     // Load trigger data
     if (event.trigger) {
@@ -2733,6 +3157,19 @@ function loadFirebaseEventToForm(eventId) {
             const lastChoice = choiceElements[choiceElements.length - 1];
             
             lastChoice.querySelector('.choice-text').value = choice.text;
+            // Load sources using backward compatibility helper functions
+            const eventIds = getEventDependencies({sources: choice.sources, dependentEventIds: choice.dependentEventIds});
+            const choiceIds = getChoiceDependencies({sources: choice.sources, dependentChoiceIds: choice.dependentChoiceIds});
+            const statusIds = getStatusDependencies({sources: choice.sources, dependentStatusIds: choice.dependentStatusIds});
+            const itemIds = getItemDependencies({sources: choice.sources, trigger: {items: choice.dependentItemIds}});
+            
+            // Set values for new source-based inputs
+            setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-events'), eventIds);
+            setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-choices'), choiceIds);
+            setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-status'), statusIds);
+            setSelectedValuesFromElement(lastChoice.querySelector('.choice-source-items'), itemIds);
+            
+            // Backward compatibility for old class names
             setSelectedValuesFromElement(lastChoice.querySelector('.choice-dependent-events'), choice.dependentEventIds);
             setSelectedValuesFromElement(lastChoice.querySelector('.choice-dependent-choices'), choice.dependentChoiceIds);
             
@@ -2954,6 +3391,701 @@ async function deleteFirebaseItem(firebaseKey) {
 function loadItemsLocally() {
     // For now, items are only stored in memory locally
     // You could extend this to use localStorage if needed
-    console.log('Loading items locally - currently in memory only');
     updateItemsDisplay();
+}
+
+// Status Firebase Functions
+async function saveStatusToFirebase(status) {
+    try {
+        const statusData = {
+            ...status,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            savedAt: new Date().toISOString()
+        };
+        
+        // Save to the status collection with auto-generated key
+        const statusRef = database.ref('status');
+        const statusItemRef = statusRef.push();
+        
+        const result = await statusItemRef.set(statusData);
+        
+        // Verify the status was actually saved
+        const verification = await statusItemRef.once('value');
+        
+        showMessage(`Status "${status.name}" saved to Firebase!`);
+        
+        // Wait a moment for the data to be set, then reload
+        setTimeout(() => {
+            loadStatusFromFirebase();
+        }, 1000);
+    } catch (error) {
+        console.error('Error saving status to Firebase: ', error);
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Permission denied - check Firebase database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Network error - check your internet connection', 'error');
+        } else if (error.code === 'UNAVAILABLE') {
+            showMessage('Firebase service temporarily unavailable', 'error');
+        } else {
+            showMessage(`Firebase save error: ${error.message || 'Unknown error'}`, 'error');
+        }
+    }
+}
+
+async function loadStatusFromFirebase() {
+    try {
+        // Get reference to status collection
+        const statusRef = database.ref('status');
+        
+        // Get the data once
+        const snapshot = await statusRef.once('value');
+        
+        const statusList = [];
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            
+            // Convert Firebase object to array
+            Object.keys(data).forEach(key => {
+                const statusItem = data[key];
+                statusItem.firebaseKey = key; // Store Firebase key for deletion
+                statusList.push(statusItem);
+            });
+            
+            // Sort by creation time (newest first)
+            statusList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        }
+        
+        // Update global status array
+        allStatus = statusList;
+        
+        // Update display
+        updateStatusDisplay();
+        
+        // Update dependency selects to include loaded status
+        updateDependencySelects();
+        
+        // Update reference lists to include loaded status
+        updateReferenceLists();
+        
+        
+    } catch (error) {
+        console.error('Error loading status from Firebase: ', error);
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Permission denied - check Firebase database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Network error - check your internet connection', 'error');
+        } else if (error.code === 'UNAVAILABLE') {
+            showMessage('Firebase service temporarily unavailable', 'error');
+        } else {
+            showMessage(`Firebase load error: ${error.message || 'Unknown error'}`, 'error');
+        }
+        
+        // Fallback to local storage or empty array
+        loadStatusLocally();
+    }
+}
+
+async function deleteFirebaseStatus(firebaseKey) {
+    if (!firebaseKey) {
+        console.error('No Firebase key provided for status deletion');
+        return;
+    }
+    
+    try {
+        const statusRef = database.ref(`status/${firebaseKey}`);
+        await statusRef.remove();
+        
+        showMessage('Status deleted from Firebase!', 'success');
+        
+        // Reload status after deletion
+        setTimeout(() => {
+            loadStatusFromFirebase();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error deleting status:', error);
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Permission denied - check Firebase database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Network error - check your internet connection', 'error');
+        } else if (error.code === 'UNAVAILABLE') {
+            showMessage('Firebase service temporarily unavailable', 'error');
+        } else {
+            showMessage(`Firebase delete error: ${error.message || 'Unknown error'}`, 'error');
+        }
+    }
+}
+
+function loadStatusLocally() {
+    // For now, status are only stored in memory locally
+    // You could extend this to use localStorage if needed
+    updateStatusDisplay();
+    updateReferenceLists();
+}
+
+// Status Management Functions
+function clearStatusForm() {
+    document.getElementById('statusName').value = '';
+    
+    // Clear selected sources
+    const eventSelected = document.getElementById('statusEventSources-selected');
+    const choiceSelected = document.getElementById('statusChoiceSources-selected');
+    const itemSelected = document.getElementById('statusItemSources-selected');
+    
+    if (eventSelected) eventSelected.innerHTML = '';
+    if (choiceSelected) choiceSelected.innerHTML = '';
+    if (itemSelected) itemSelected.innerHTML = '';
+    
+    // Clear prerequisite inputs
+    const prerequisiteInputs = document.querySelectorAll('#prerequisitesContainer input[data-attribute]');
+    prerequisiteInputs.forEach(input => {
+        input.value = '';
+    });
+    
+    updateStatusPreview();
+}
+
+function updateStatusPreview() {
+    const statusName = document.getElementById('statusName').value;
+    const preview = document.getElementById('statusPreview');
+    
+    if (!preview) return;
+    
+    if (!statusName.trim()) {
+        preview.innerHTML = '<div class="text-gray-400 text-sm">Fill in the form to see status preview...</div>';
+        return;
+    }
+    
+    const statusObj = generateStatusJson();
+    
+    preview.innerHTML = `
+        <div class="bg-cyan-600 text-white p-3 rounded-lg border border-cyan-500">
+            <div class="flex items-center justify-between mb-2">
+                <h5 class="font-semibold text-sm flex items-center">
+                    <span class="mr-2">🏆</span>${statusObj.name}
+                </h5>
+                <span class="text-xs bg-cyan-700 px-2 py-1 rounded">${statusObj.id}</span>
+            </div>
+            <div class="text-xs space-y-1">
+                <div><strong>Prerequisites:</strong> ${Object.keys(statusObj.Prerequisites).length > 0 ? 
+                    Object.entries(statusObj.Prerequisites).map(([attr, values]) => {
+                        const minMax = [];
+                        if (values.min !== undefined) minMax.push(`min: ${values.min}`);
+                        if (values.max !== undefined) minMax.push(`max: ${values.max}`);
+                        return `${attr} (${minMax.join(', ')})`;
+                    }).join(', ') 
+                    : 'None'}</div>
+                <div><strong>Optional Sources:</strong> ${statusObj.optionalSources.length} source(s)</div>
+            </div>
+        </div>
+    `;
+}
+
+function generateStatusJson() {
+    const statusName = document.getElementById('statusName').value;
+    
+    // Generate GUID
+    const statusId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+    
+    // Collect optional sources
+    const optionalSources = [];
+    
+    // Event sources
+    const eventSelected = document.getElementById('statusEventSources-selected');
+    if (eventSelected) {
+        const eventBadges = eventSelected.querySelectorAll('div[data-item-id]');
+        eventBadges.forEach(badge => {
+            optionalSources.push({
+                type: "event",
+                id: badge.getAttribute('data-item-id')
+            });
+        });
+    }
+    
+    // Choice sources
+    const choiceSelected = document.getElementById('statusChoiceSources-selected');
+    if (choiceSelected) {
+        const choiceBadges = choiceSelected.querySelectorAll('div[data-item-id]');
+        choiceBadges.forEach(badge => {
+            optionalSources.push({
+                type: "choice",
+                id: badge.getAttribute('data-item-id')
+            });
+        });
+    }
+    
+    // Item sources
+    const itemSelected = document.getElementById('statusItemSources-selected');
+    if (itemSelected) {
+        const itemBadges = itemSelected.querySelectorAll('div[data-item-id]');
+        itemBadges.forEach(badge => {
+            optionalSources.push({
+                type: "item",
+                id: badge.getAttribute('data-item-id')
+            });
+        });
+    }
+    
+    // Collect prerequisites - single object instead of array
+    const prerequisites = {};
+    
+    // Get all attribute inputs from the prerequisites container
+    const allAttributeInputs = document.querySelectorAll('#prerequisitesContainer input[data-attribute]');
+    allAttributeInputs.forEach(input => {
+        const attribute = input.getAttribute('data-attribute');
+        const type = input.getAttribute('data-type');
+        const value = input.value;
+        
+        if (value !== '') {
+            if (!prerequisites[attribute]) {
+                prerequisites[attribute] = {};
+            }
+            prerequisites[attribute][type] = parseInt(value);
+        }
+    });
+    
+    return {
+        id: statusId,
+        name: statusName,
+        Prerequisites: prerequisites,
+        optionalSources: optionalSources
+    };
+}
+
+function generateStatus() {
+    const statusName = document.getElementById('statusName').value;
+    
+    if (!statusName.trim()) {
+        showMessage('Please enter a status name', 'error');
+        return;
+    }
+    
+    const statusObj = generateStatusJson();
+    
+    // Try to save to Firebase first, fallback to local storage
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        saveStatusToFirebase(statusObj);
+    } else {
+        addStatusToList(statusObj);
+        showMessage('Status created successfully! (Saved locally)', 'success');
+    }
+    
+    hideStatusModal();
+}
+
+function copyStatusJson() {
+    const statusObj = generateStatusJson();
+    const jsonString = JSON.stringify(statusObj, null, 2);
+    
+    navigator.clipboard.writeText(jsonString).then(() => {
+        showMessage('Status JSON copied to clipboard!', 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showMessage('Failed to copy JSON to clipboard', 'error');
+    });
+}
+
+function addStatusToList(statusObj) {
+    allStatus.push(statusObj);
+    updateStatusDisplay();
+    updateDependencySelects(); // Update autocomplete with new status
+    updateReferenceLists(); // Update reference lists with new status
+}
+
+function updateStatusDisplay() {
+    const statusGrid = document.getElementById('statusGrid');
+    if (!statusGrid) return;
+    
+    if (allStatus.length === 0) {
+        statusGrid.innerHTML = '<div class="text-gray-400 text-sm text-center col-span-full py-8">No status created yet. Click "Create Status" to add your first status!</div>';
+        return;
+    }
+    
+    statusGrid.innerHTML = allStatus.map((status, index) => `
+        <div class="bg-gray-600 rounded-lg p-4 border border-gray-500 hover:border-cyan-400 transition-colors">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="font-semibold text-cyan-300 flex items-center text-sm">
+                    <span class="mr-2">🏆</span>${status.name}
+                </h4>
+                <div class="flex gap-1">
+                    <button onclick="copyStatusId('${status.id}')" 
+                        class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors"
+                        title="Copy ID">📋</button>
+                    <button onclick="removeStatus(${index})" 
+                        class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs transition-colors"
+                        title="Delete">🗑️</button>
+                </div>
+            </div>
+            <div class="text-xs text-gray-300 space-y-1">
+                <div><strong>ID:</strong> <span class="font-mono text-xs">${status.id}</span></div>
+                <div><strong>Prerequisites:</strong> ${Object.keys(status.Prerequisites || {}).length} attribute(s)</div>
+                <div><strong>Optional Sources:</strong> ${status.optionalSources.length} source(s)</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function removeStatus(index) {
+    if (confirm('Are you sure you want to delete this status?')) {
+        const status = allStatus[index];
+        
+        // If status has Firebase key, delete from Firebase
+        if (status.firebaseKey) {
+            deleteFirebaseStatus(status.firebaseKey);
+        } else {
+            // Local deletion
+            allStatus.splice(index, 1);
+            updateStatusDisplay();
+            showMessage('Status deleted successfully!', 'success');
+        }
+    }
+}
+
+function copyStatusId(statusId) {
+    navigator.clipboard.writeText(statusId).then(() => {
+        showMessage('Status ID copied to clipboard!', 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showMessage('Failed to copy ID to clipboard', 'error');
+    });
+}
+
+// addPrerequisite and removePrerequisite functions removed - now using static prerequisite inputs
+
+function getStatusList() {
+    return allStatus.map(status => ({
+        id: status.id,
+        name: status.name
+    }));
+}
+
+// Event Ideas Functions
+let currentEventIdea = null;
+let allEventIdeas = [];
+
+window.showEventIdeaModal = function() {
+    const modal = document.getElementById('eventIdeaModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        modal.style.display = 'flex';
+        clearEventIdeaForm();
+    }
+};
+
+window.hideEventIdeaModal = function() {
+    const modal = document.getElementById('eventIdeaModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        modal.style.display = 'none';
+    }
+};
+
+window.toggleEventIdeasContainer = function() {
+    const content = document.querySelector('.event-ideas-content');
+    const icon = content?.parentElement.querySelector('.collapse-icon');
+    
+    if (!content || !icon) return;
+    
+    if (content.style.display === 'none') {
+        // Expand
+        content.style.display = 'block';
+        icon.textContent = '−';
+    } else {
+        // Collapse
+        content.style.display = 'none';
+        icon.textContent = '+';
+    }
+};
+
+function clearEventIdeaForm() {
+    document.getElementById('eventIdeaName').value = '';
+    document.getElementById('eventIdeaDescription').value = '';
+    updateEventIdeaPreview();
+}
+
+function updateEventIdeaPreview() {
+    const name = document.getElementById('eventIdeaName').value;
+    const description = document.getElementById('eventIdeaDescription').value;
+    
+    const preview = document.getElementById('eventIdeaPreview');
+    
+    if (!name.trim() && !description.trim()) {
+        preview.innerHTML = '<div class="text-gray-400 text-sm">Fill in the form to see event idea preview...</div>';
+        return;
+    }
+    
+    preview.innerHTML = `
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="text-lg font-semibold text-green-300 flex items-center">
+                    <span class="mr-2">💡</span>${name || 'Event Idea Name'}
+                </h4>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed">
+                ${description || 'Event idea description...'}
+            </p>
+        </div>
+    `;
+}
+
+function generateEventIdeaJson() {
+    const name = document.getElementById('eventIdeaName').value;
+    const description = document.getElementById('eventIdeaDescription').value;
+    
+    if (!name.trim()) {
+        showMessage('Please enter an event idea name', 'error');
+        return null;
+    }
+    
+    if (!description.trim()) {
+        showMessage('Please enter an event idea description', 'error');
+        return null;
+    }
+    
+    // Generate GUID
+    const eventIdeaId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+    
+    const eventIdea = {
+        id: eventIdeaId,
+        name: name.trim(),
+        description: description.trim()
+    };
+    
+    return eventIdea;
+}
+
+function generateEventIdea() {
+    const eventIdea = generateEventIdeaJson();
+    
+    if (eventIdea) {
+        currentEventIdea = eventIdea;
+        
+        // Try Firebase first, fallback to local storage
+        if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+            saveEventIdeaToFirebase(eventIdea);
+        } else {
+            // Automatically add to event ideas list locally
+            allEventIdeas.push(eventIdea);
+            updateEventIdeasDisplay();
+            saveEventIdeasLocally();
+            showMessage(`Event idea "${eventIdea.name}" generated and added to list!`);
+        }
+        
+        // Close the modal after successful generation
+        hideEventIdeaModal();
+    }
+}
+
+function copyEventIdeaJson() {
+    const eventIdea = currentEventIdea || generateEventIdeaJson();
+    
+    if (eventIdea) {
+        navigator.clipboard.writeText(JSON.stringify(eventIdea, null, 2)).then(() => {
+            showMessage('Event idea JSON copied to clipboard!');
+        });
+    }
+}
+
+function updateEventIdeasDisplay() {
+    const eventIdeasGrid = document.getElementById('eventIdeasGrid');
+    
+    if (!eventIdeasGrid) return;
+    
+    if (allEventIdeas.length === 0) {
+        eventIdeasGrid.innerHTML = `
+            <div class="text-gray-400 text-sm text-center col-span-full py-8">
+                No event ideas created yet. Click "Create Event Idea" to add your first idea!
+            </div>
+        `;
+        return;
+    }
+    
+    eventIdeasGrid.innerHTML = allEventIdeas.map((eventIdea, index) => `
+        <div class="bg-gray-600 rounded-lg p-4 border border-gray-500 hover:border-green-400 transition-colors">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="text-lg font-semibold text-green-300 flex items-center truncate">
+                    <span class="mr-2">💡</span>
+                    <span class="truncate">${eventIdea.name}</span>
+                </h4>
+                <div class="flex gap-1 ml-2">
+                    <button onclick="copyEventIdeaId('${eventIdea.id}')" 
+                        class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors"
+                        title="Copy ID">
+                        📋
+                    </button>
+                    <button onclick="removeEventIdea(${index})" 
+                        class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs transition-colors"
+                        title="Delete">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+            <p class="text-gray-300 text-sm leading-relaxed line-clamp-3">
+                ${eventIdea.description}
+            </p>
+        </div>
+    `).join('');
+}
+
+function removeEventIdea(index) {
+    if (confirm('Are you sure you want to delete this event idea?')) {
+        const eventIdea = allEventIdeas[index];
+        
+        // If event idea has Firebase key, delete from Firebase
+        if (eventIdea.firebaseKey) {
+            deleteFirebaseEventIdea(eventIdea.firebaseKey);
+        } else {
+            // Local deletion
+            allEventIdeas.splice(index, 1);
+            updateEventIdeasDisplay();
+            saveEventIdeasLocally();
+            showMessage('Event idea deleted successfully!', 'success');
+        }
+    }
+}
+
+function copyEventIdeaId(eventIdeaId) {
+    navigator.clipboard.writeText(eventIdeaId).then(() => {
+        showMessage('Event idea ID copied to clipboard!');
+    }).catch(() => {
+        showMessage('Failed to copy ID to clipboard', 'error');
+    });
+}
+
+function getEventIdeasList() {
+    return allEventIdeas.map(eventIdea => ({
+        id: eventIdea.id,
+        name: eventIdea.name,
+        description: eventIdea.description
+    }));
+}
+
+// Firebase functions for event ideas
+async function saveEventIdeaToFirebase(eventIdea) {
+    try {
+        const eventIdeaData = {
+            ...eventIdea,
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            savedAt: new Date().toISOString()
+        };
+        
+        // Save to the event_ideas collection with auto-generated key
+        const eventIdeasRef = database.ref('event_ideas');
+        const eventIdeaRef = eventIdeasRef.push();
+        
+        const result = await eventIdeaRef.set(eventIdeaData);
+        
+        // Verify the event idea was actually saved
+        const verification = await eventIdeaRef.once('value');
+        
+        showMessage(`Event idea "${eventIdea.name}" saved to Firebase!`);
+        
+        // Wait a moment for the data to be set, then reload
+        setTimeout(() => {
+            loadEventIdeasFromFirebase();
+        }, 1000);
+    } catch (error) {
+        console.error('Error saving event idea to Firebase: ', error);
+        
+        if (error.code === 'PERMISSION_DENIED') {
+            showMessage('Permission denied - check Firebase database rules', 'error');
+        } else if (error.code === 'NETWORK_ERROR') {
+            showMessage('Network error - check your internet connection', 'error');
+        } else if (error.code === 'UNAVAILABLE') {
+            showMessage('Firebase service temporarily unavailable', 'error');
+        } else {
+            showMessage(`Firebase save error: ${error.message || 'Unknown error'}`, 'error');
+        }
+        
+        // Fallback to local storage
+        allEventIdeas.push(eventIdea);
+        updateEventIdeasDisplay();
+        showMessage(`Event idea "${eventIdea.name}" added to local list!`);
+    }
+}
+
+async function loadEventIdeasFromFirebase() {
+    try {
+        // Get reference to event_ideas collection
+        const eventIdeasRef = database.ref('event_ideas');
+        
+        // Get the data once
+        const snapshot = await eventIdeasRef.once('value');
+        
+        const eventIdeas = [];
+        
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            
+            // Convert the object to an array
+            Object.keys(data).forEach(key => {
+                const eventIdea = data[key];
+                
+                // Add Firebase key as firebaseKey for reference, keep original event idea ID
+                eventIdeas.push({
+                    ...eventIdea,
+                    firebaseKey: key, // Store the Firebase auto-generated key for deletion
+                    // Convert Firebase timestamp to readable format if needed
+                    savedAt: eventIdea.savedAt || new Date(eventIdea.createdAt || Date.now()).toISOString()
+                });
+            });
+            
+            // Sort event ideas by createdAt (most recent first)
+            eventIdeas.sort((a, b) => {
+                const aTime = new Date(a.createdAt || a.savedAt || 0).getTime();
+                const bTime = new Date(b.createdAt || b.savedAt || 0).getTime();
+                return bTime - aTime;
+            });
+        }
+        
+        // Update allEventIdeas with Firebase data
+        allEventIdeas = eventIdeas;
+        updateEventIdeasDisplay();
+        
+    } catch (error) {
+        console.error('Error loading event ideas from Firebase: ', error);
+        showMessage('Failed to load event ideas from Firebase - using local data', 'error');
+    }
+}
+
+async function deleteFirebaseEventIdea(firebaseKey) {
+    try {
+        const eventIdeaRef = database.ref(`event_ideas/${firebaseKey}`);
+        await eventIdeaRef.remove();
+        
+        showMessage('Event idea deleted from Firebase!');
+        
+        // Reload event ideas from Firebase
+        setTimeout(() => {
+            loadEventIdeasFromFirebase();
+        }, 500);
+    } catch (error) {
+        console.error('Error deleting event idea from Firebase: ', error);
+        showMessage('Failed to delete event idea from Firebase', 'error');
+    }
+}
+
+// Local storage functions for event ideas
+function loadEventIdeasLocally() {
+    const savedEventIdeas = JSON.parse(localStorage.getItem('savedEventIdeas') || '[]');
+    allEventIdeas = savedEventIdeas;
+    updateEventIdeasDisplay();
+}
+
+function saveEventIdeasLocally() {
+    localStorage.setItem('savedEventIdeas', JSON.stringify(allEventIdeas));
 }

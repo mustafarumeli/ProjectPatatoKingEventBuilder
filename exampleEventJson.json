@@ -85,6 +85,6 @@
 {
     "id": "Guid",
     "name": "string",
-    "Prerequisites": "Trigger[]",
+    "Prerequisites": "Trigger",
     "optionalSources": "Source[]",
 }
