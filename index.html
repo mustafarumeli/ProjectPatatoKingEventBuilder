@@ -86,60 +86,201 @@
             }
         }
         
-        /* Ensure the sticky bar stays above everything - Extended to tablets */
-        @media (max-width: 1024px) {
+        /* Ensure the sticky bar stays above everything - Extended to 1600px */
+        @media (max-width: 1600px) {
             .mobile-sticky-bar {
                 position: fixed !important;
                 bottom: 0 !important;
                 left: 0 !important;
                 right: 0 !important;
+                top: auto !important;
                 z-index: 9999 !important;
+                flex-direction: row !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0.5rem !important;
+                gap: 0.25rem !important;
+                background-color: rgba(31, 41, 55, 0.95) !important;
+                backdrop-filter: blur(4px) !important;
+                border-top: 2px solid rgb(75, 85, 99) !important;
+                border-radius: 0 !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-bottom: none !important;
+            }
+            
+            .mobile-sticky-bar button {
+                flex: 1 !important;
+                padding: 0.5rem !important;
+                font-size: 0.75rem !important;
+                line-height: 1rem !important;
+                flex-direction: column !important;
+            }
+            
+            .mobile-sticky-bar button span:first-child {
+                margin-bottom: 0.25rem !important;
+                margin-right: 0 !important;
+            }
+        }
+
+        /* Custom responsive classes for 1600px breakpoint */
+        @media (min-width: 1601px) {
+            .desktop-1600\:flex {
+                display: flex !important;
+            }
+            .desktop-1600\:hidden {
+                display: none !important;
+            }
+            .desktop-1600\:flex-col {
+                flex-direction: column !important;
+            }
+            .desktop-1600\:flex-row {
+                flex-direction: row !important;
+            }
+            .desktop-1600\:top-4 {
+                top: 1rem !important;
+            }
+            .desktop-1600\:right-4 {
+                right: 1rem !important;
+            }
+            .desktop-1600\:left-auto {
+                left: auto !important;
+            }
+            .desktop-1600\:bottom-auto {
+                bottom: auto !important;
+            }
+            .desktop-1600\:gap-3 {
+                gap: 0.75rem !important;
+            }
+            .desktop-1600\:p-4 {
+                padding: 1rem !important;
+            }
+            .desktop-1600\:px-6 {
+                padding-left: 1.5rem !important;
+                padding-right: 1.5rem !important;
+            }
+            .desktop-1600\:py-3 {
+                padding-top: 0.75rem !important;
+                padding-bottom: 0.75rem !important;
+            }
+            .desktop-1600\:text-base {
+                font-size: 1rem !important;
+                line-height: 1.5rem !important;
+            }
+            .desktop-1600\:text-4xl {
+                font-size: 2.25rem !important;
+                line-height: 2.5rem !important;
+            }
+            .desktop-1600\:text-xl {
+                font-size: 1.25rem !important;
+                line-height: 1.75rem !important;
+            }
+            .desktop-1600\:text-2xl {
+                font-size: 1.5rem !important;
+                line-height: 2rem !important;
+            }
+            .desktop-1600\:mb-4 {
+                margin-bottom: 1rem !important;
+            }
+            .desktop-1600\:mb-8 {
+                margin-bottom: 2rem !important;
+            }
+            .desktop-1600\:mr-3 {
+                margin-right: 0.75rem !important;
+            }
+            .desktop-1600\:p-8 {
+                padding: 2rem !important;
+            }
+            .desktop-1600\:p-6 {
+                padding: 1.5rem !important;
+            }
+            .desktop-1600\:pb-6 {
+                padding-bottom: 1.5rem !important;
+            }
+            .desktop-1600\:w-\[200px\] {
+                width: 200px !important;
+            }
+            .desktop-1600\:max-w-\[calc\(100vw-2rem\)\] {
+                max-width: calc(100vw - 2rem) !important;
+            }
+            .desktop-1600\:bg-gray-800 {
+                background-color: rgb(31 41 55) !important;
+            }
+            .desktop-1600\:backdrop-blur-none {
+                backdrop-filter: none !important;
+            }
+            .desktop-1600\:rounded-2xl {
+                border-radius: 1rem !important;
+            }
+            .desktop-1600\:border {
+                border-width: 1px !important;
+            }
+            .desktop-1600\:border-gray-700 {
+                border-color: rgb(55 65 81) !important;
+            }
+            .desktop-1600\:grid-cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+            .desktop-1600\:grid-cols-3 {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            }
+            .desktop-1600\:grid-cols-4 {
+                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            }
+            .desktop-1600\:grid-cols-5 {
+                grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            }
+            .desktop-1600\:gap-6 {
+                gap: 1.5rem !important;
+            }
+            .desktop-1600\:gap-2 {
+                gap: 0.5rem !important;
             }
         }
     </style>
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen">
-    <div class="max-w-[1600px] mx-auto px-4 py-4 xl:px-6 xl:py-6 pb-20 xl:pb-6">
-        <header class="text-center bg-gray-800 rounded-2xl p-4 xl:p-8 mb-6 xl:mb-8 shadow-2xl border border-gray-700">
+    <div class="max-w-[1600px] mx-auto px-4 py-4 desktop-1600:px-6 desktop-1600:py-6 pb-20 desktop-1600:pb-6">
+        <header class="text-center bg-gray-800 rounded-2xl p-4 desktop-1600:p-8 mb-6 desktop-1600:mb-8 shadow-2xl border border-gray-700">
             <h1
-                class="text-2xl xl:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2 xl:mb-4">
+                class="text-2xl desktop-1600:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2 desktop-1600:mb-4">
                 🥔 Event Builder - Patato King</h1>
-            <p class="text-lg xl:text-xl text-gray-300">Create interactive events for your game</p>
+            <p class="text-lg desktop-1600:text-xl text-gray-300">Create interactive events for your game</p>
         </header>
 
         <!-- Action Buttons - Mobile/Tablet bottom bar, Desktop top-right -->
-        <div class="mobile-sticky-bar fixed bottom-0 left-0 right-0 xl:top-4 xl:right-4 xl:left-auto xl:bottom-auto z-50 flex flex-row xl:flex-col gap-1 xl:gap-3 p-2 xl:p-4 bg-gray-800/95 xl:bg-gray-800 backdrop-blur-sm xl:backdrop-blur-none xl:rounded-2xl shadow-2xl border-t-2 xl:border border-gray-600 xl:border-gray-700 w-full xl:w-[200px] xl:max-w-[calc(100vw-2rem)] safe-area-inset-bottom">
+        <div class="mobile-sticky-bar fixed bottom-0 left-0 right-0 desktop-1600:top-4 desktop-1600:right-4 desktop-1600:left-auto desktop-1600:bottom-auto z-50 flex flex-row desktop-1600:flex-col gap-1 desktop-1600:gap-3 p-2 desktop-1600:p-4 bg-gray-800/95 desktop-1600:bg-gray-800 backdrop-blur-sm desktop-1600:backdrop-blur-none desktop-1600:rounded-2xl shadow-2xl border-t-2 desktop-1600:border border-gray-600 desktop-1600:border-gray-700 w-full desktop-1600:w-[200px] desktop-1600:max-w-[calc(100vw-2rem)] safe-area-inset-bottom">
             <button type="button" id="previewEvent"
-                class="flex-1 xl:flex-none px-2 py-2 xl:px-6 xl:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col xl:flex-row items-center justify-center text-xs xl:text-base">
-                <span class="mb-1 xl:mb-0 xl:mr-2">👁️</span>
-                <span class="hidden sm:inline xl:inline">Preview JSON</span>
-                <span class="sm:hidden xl:hidden">Preview</span>
+                class="flex-1 desktop-1600:flex-none px-2 py-2 desktop-1600:px-6 desktop-1600:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col desktop-1600:flex-row items-center justify-center text-xs desktop-1600:text-base">
+                <span class="mb-1 desktop-1600:mb-0 desktop-1600:mr-2">👁️</span>
+                <span class="hidden sm:inline desktop-1600:inline">Preview JSON</span>
+                <span class="sm:hidden desktop-1600:hidden">Preview</span>
             </button> 
             <button type="button" id="saveEvent"
-                class="flex-1 xl:flex-none px-2 py-2 xl:px-6 xl:py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col xl:flex-row items-center justify-center text-xs xl:text-base">
-                <span class="mb-1 xl:mb-0 xl:mr-2">💾</span>
-                <span class="hidden sm:inline xl:inline">Save Event</span>
-                <span class="sm:hidden xl:hidden">Save</span>
+                class="flex-1 desktop-1600:flex-none px-2 py-2 desktop-1600:px-6 desktop-1600:py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col desktop-1600:flex-row items-center justify-center text-xs desktop-1600:text-base">
+                <span class="mb-1 desktop-1600:mb-0 desktop-1600:mr-2">💾</span>
+                <span class="hidden sm:inline desktop-1600:inline">Save Event</span>
+                <span class="sm:hidden desktop-1600:hidden">Save</span>
             </button>
             <button type="button" id="loadEvent"
-                class="flex-1 xl:flex-none px-2 py-2 xl:px-6 xl:py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col xl:flex-row items-center justify-center text-xs xl:text-base">
-                <span class="mb-1 xl:mb-0 xl:mr-2">📂</span>
-                <span class="hidden sm:inline xl:inline">Load Event</span>
-                <span class="sm:hidden xl:hidden">Load</span>
+                class="flex-1 desktop-1600:flex-none px-2 py-2 desktop-1600:px-6 desktop-1600:py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col desktop-1600:flex-row items-center justify-center text-xs desktop-1600:text-base">
+                <span class="mb-1 desktop-1600:mb-0 desktop-1600:mr-2">📂</span>
+                <span class="hidden sm:inline desktop-1600:inline">Load Event</span>
+                <span class="sm:hidden desktop-1600:hidden">Load</span>
             </button>
             <button type="button" id="clearForm"
-                class="flex-1 xl:flex-none px-2 py-2 xl:px-6 xl:py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col xl:flex-row items-center justify-center text-xs xl:text-base">
-                <span class="mb-1 xl:mb-0 xl:mr-2">🗑️</span>
-                <span class="hidden sm:inline xl:inline">Clear Form</span>
-                <span class="sm:hidden xl:hidden">Clear</span>
+                class="flex-1 desktop-1600:flex-none px-2 py-2 desktop-1600:px-6 desktop-1600:py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col desktop-1600:flex-row items-center justify-center text-xs desktop-1600:text-base">
+                <span class="mb-1 desktop-1600:mb-0 desktop-1600:mr-2">🗑️</span>
+                <span class="hidden sm:inline desktop-1600:inline">Clear Form</span>
+                <span class="sm:hidden desktop-1600:hidden">Clear</span>
             </button>
         </div>
 
 
 
         <!-- Event Builder Container -->
-        <div id="event-builder" class="bg-gray-800 rounded-2xl p-4 xl:p-8 shadow-2xl border border-gray-700 mb-6 xl:mb-8">
+        <div id="event-builder" class="bg-gray-800 rounded-2xl p-4 desktop-1600:p-8 shadow-2xl border border-gray-700 mb-6 desktop-1600:mb-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-blue-400 flex items-center">
                     <span class="mr-3">🎮</span>Event Builder
@@ -153,10 +294,10 @@
 
             <!-- Event Builder Content - Collapsible -->
             <div class="event-builder-content" style="display: none;">
-                <div class="grid grid-cols-1 2xl:grid-cols-2 gap-4 xl:gap-6">
+                <div class="grid grid-cols-1 desktop-1600:grid-cols-2 gap-4 desktop-1600:gap-6">
                     <div>
                         <!-- Event Form -->
-                        <div class="bg-gray-700 rounded-xl p-4 xl:p-6 border border-gray-600">
+                        <div class="bg-gray-700 rounded-xl p-4 desktop-1600:p-6 border border-gray-600">
                             <h3 class="text-xl font-bold text-blue-300 mb-6 flex items-center">
                                 <span class="mr-3">📝</span>Event Details
                             </h3>
@@ -257,7 +398,7 @@
                                     </div>
 
                                 <!-- Trigger Section -->
-                                <div class="bg-gray-700 rounded-xl p-4 xl:p-6 border border-gray-600">
+                                <div class="bg-gray-700 rounded-xl p-4 desktop-1600:p-6 border border-gray-600">
                                     <div class="flex justify-between items-center mb-4">
                                         <h3 class="text-lg font-semibold text-purple-400 flex items-center">
                                             <span class="mr-2">🎯</span>Trigger Conditions
@@ -603,8 +744,8 @@
             </div>
         </div>
 
-        <!-- Navigation Menu - Hidden on mobile/tablet, visible on desktop -->
-        <div class="hidden xl:flex fixed bottom-4 right-4 z-40 flex-col gap-1 w-[200px] max-w-[calc(100vw-2rem)]">
+        <!-- Navigation Menu - Hidden up to 1600px, visible on large desktop -->
+        <div class="hidden desktop-1600:flex fixed bottom-4 right-4 z-40 flex-col gap-1 w-[200px] max-w-[calc(100vw-2rem)]">
             <!-- Header -->
             <div class="text-center mb-2">
                 <h3 class="text-xs font-bold text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text flex items-center justify-center gap-1">
@@ -616,27 +757,27 @@
             
             <!-- Navigation Links -->
             <a href="#event-builder" 
-                class="group flex items-center gap-1 xl:gap-2 px-2 py-1 xl:px-3 xl:py-2 text-xs bg-gradient-to-r from-blue-600/20 to-blue-500/20 hover:from-blue-600/40 hover:to-blue-500/40 text-blue-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-blue-500/25 hover:scale-105 transform border border-blue-500/20 hover:border-blue-400/40">
+                class="group flex items-center gap-1 2xl:gap-2 px-2 py-1 2xl:px-3 2xl:py-2 text-xs bg-gradient-to-r from-blue-600/20 to-blue-500/20 hover:from-blue-600/40 hover:to-blue-500/40 text-blue-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-blue-500/25 hover:scale-105 transform border border-blue-500/20 hover:border-blue-400/40">
                 <span class="group-hover:scale-110 transition-transform duration-300 text-xs">🎮</span>
                 <span class="hidden sm:inline">Event Builder</span>
                 <span class="sm:hidden">Builder</span>
             </a>
             
             <a href="#saved-events" 
-                class="group flex items-center gap-1 xl:gap-2 px-2 py-1 xl:px-3 xl:py-2 text-xs bg-gradient-to-r from-yellow-600/20 to-amber-500/20 hover:from-yellow-600/40 hover:to-amber-500/40 text-yellow-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-yellow-500/25 hover:scale-105 transform border border-yellow-500/20 hover:border-yellow-400/40">
+                class="group flex items-center gap-1 2xl:gap-2 px-2 py-1 2xl:px-3 2xl:py-2 text-xs bg-gradient-to-r from-yellow-600/20 to-amber-500/20 hover:from-yellow-600/40 hover:to-amber-500/40 text-yellow-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-yellow-500/25 hover:scale-105 transform border border-yellow-500/20 hover:border-yellow-400/40">
                 <span class="group-hover:scale-110 transition-transform duration-300 text-xs">💾</span>
                 <span class="hidden sm:inline">Saved Events</span>
                 <span class="sm:hidden">Saved</span>
             </a>
             
             <a href="#items" 
-                class="group flex items-center gap-1 xl:gap-2 px-2 py-1 xl:px-3 xl:py-2 text-xs bg-gradient-to-r from-purple-600/20 to-violet-500/20 hover:from-purple-600/40 hover:to-violet-500/40 text-purple-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-purple-500/25 hover:scale-105 transform border border-purple-500/20 hover:border-purple-400/40">
+                class="group flex items-center gap-1 2xl:gap-2 px-2 py-1 2xl:px-3 2xl:py-2 text-xs bg-gradient-to-r from-purple-600/20 to-violet-500/20 hover:from-purple-600/40 hover:to-violet-500/40 text-purple-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-purple-500/25 hover:scale-105 transform border border-purple-500/20 hover:border-purple-400/40">
                 <span class="group-hover:scale-110 transition-transform duration-300 text-xs">🎒</span>
                 <span>Items</span>
             </a>
             
             <a href="#status" 
-                class="group flex items-center gap-1 xl:gap-2 px-2 py-1 xl:px-3 xl:py-2 text-xs bg-gradient-to-r from-cyan-600/20 to-teal-500/20 hover:from-cyan-600/40 hover:to-teal-500/40 text-cyan-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-cyan-500/25 hover:scale-105 transform border border-cyan-500/20 hover:border-cyan-400/40">
+                class="group flex items-center gap-1 2xl:gap-2 px-2 py-1 2xl:px-3 2xl:py-2 text-xs bg-gradient-to-r from-cyan-600/20 to-teal-500/20 hover:from-cyan-600/40 hover:to-teal-500/40 text-cyan-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-cyan-500/25 hover:scale-105 transform border border-cyan-500/20 hover:border-cyan-400/40">
                 <span class="group-hover:scale-110 transition-transform duration-300 text-xs">🏆</span>
                 <span>Status</span>
             </a>
