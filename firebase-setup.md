@@ -8,13 +8,15 @@
 4. Enable Google Analytics (optional)
 5. Click "Create project"
 
-## 2. Enable Firestore Database
+## 2. Enable Realtime Database
 
-1. In your Firebase project console, go to "Firestore Database"
-2. Click "Create database"
+1. In your Firebase project console, go to "Realtime Database"
+2. Click "Create Database"
 3. Choose "Start in test mode" (for development)
-4. Select a location for your database
+4. Select a location for your database (should match your region)
 5. Click "Done"
+
+**Important:** This project uses Firebase Realtime Database, not Firestore!
 
 ## 3. Get Firebase Configuration
 
@@ -32,6 +34,7 @@ Replace the placeholder configuration in `script.js` with your actual Firebase c
 const firebaseConfig = {
     apiKey: "your-actual-api-key",
     authDomain: "your-project.firebaseapp.com",
+    databaseURL: "https://your-project-default-rtdb.region.firebasedatabase.app",
     projectId: "your-actual-project-id",
     storageBucket: "your-project.appspot.com",
     messagingSenderId: "123456789",
@@ -39,36 +42,56 @@ const firebaseConfig = {
 };
 ```
 
-## 5. Uncomment Firebase Initialization
+**Important:** Make sure to include the `databaseURL` for Realtime Database!
 
-In `script.js`, uncomment these lines:
+## 5. Firebase is Already Initialized
+
+The Firebase initialization is already set up in `script.js`:
 
 ```javascript
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const database = firebase.database();
 ```
 
-## 6. Set Up Firestore Security Rules (Optional)
+## 6. Set Up Realtime Database Security Rules
 
-For production, update Firestore rules in the Firebase Console:
+**CRITICAL:** You must configure database rules for the delete functionality to work!
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /events/{document} {
-      allow read, write: if true; // Adjust based on your needs
-    }
+### For Testing (Allows all operations):
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
   }
 }
 ```
 
+### For Production (More secure):
+```json
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null"
+  }
+}
+```
+
+### To update rules:
+1. Go to Firebase Console > Realtime Database > Rules
+2. Replace the existing rules with one of the above
+3. Click "Publish"
+
+**Note:** The test rules above allow anyone to read/write. Use authentication rules for production!
+
 ## 7. Test the Integration
 
 1. Open your webpage
-2. Create an event
-3. Click "Save Event"
-4. Check your Firestore database in the Firebase Console to see if the event was saved
+2. Click "🔥 Test Firebase" button to verify connection and permissions
+3. Create an event
+4. Click "Save Event"
+5. Check your Realtime Database in the Firebase Console to see if the event was saved
+6. Try deleting an event to verify delete permissions work
 
 ## Fallback to Local Storage
 
