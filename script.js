@@ -44,12 +44,13 @@ let currentTreeEventIndex = null;
 let currentTreeOptions = { showForward: true, showBackward: true, includeChoices: true };
 
 // Global event filter state
-let showDependentEventsOnly = false; // Start with all events visible by default
+let showDependentEventsOnly = true; // Start with dependent events only by default
 
 window.showEventTree = function(eventIndex) {
     currentTreeEventIndex = eventIndex;
-    const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
-    const rootEvent = savedEvents[eventIndex];
+    
+    // Use current data source (allEvents contains the current events from Firebase or localStorage)
+    const rootEvent = allEvents[eventIndex];
     
     if (!rootEvent) {
         showMessage('Event not found', 'error');
@@ -57,7 +58,7 @@ window.showEventTree = function(eventIndex) {
     }
     
     // Build the tree structure with current options
-    const treeData = buildEventTree(rootEvent, savedEvents, currentTreeOptions);
+    const treeData = buildEventTree(rootEvent, allEvents, currentTreeOptions);
     
     // Generate SVG
     const svg = generateTreeSVG(treeData, rootEvent.title);
@@ -129,13 +130,13 @@ function toggleChoiceInclusion() {
 function showAllEvents() {
     showDependentEventsOnly = false;
     updateEventFilterButtons();
-    loadSavedEvents();
+    loadEvents();
 }
 
 function showDependentEventsOnlyFilter() {
     showDependentEventsOnly = true;
     updateEventFilterButtons();
-    loadSavedEvents();
+    loadEvents();
 }
 
 function updateEventFilterButtons() {
@@ -476,12 +477,9 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
     dropdown.classList.add('hidden');
     
     // If selecting a choice, also add its parent event to dependent events
-    console.log('Checking auto-add:', { type, item, hasParentEventId: !!item.parentEventId });
     if (type === 'choice' && item.parentEventId) {
-        console.log('Auto-add condition met, parentEventId:', item.parentEventId);
         // Find the dependent events autocomplete for this same element
         const parentElement = dropdown.closest('.choice-item') || dropdown.closest('.bg-gray-700');
-        console.log('Parent element found:', !!parentElement);
         if (parentElement) {
             // Try to find the event input in the same choice or main form
             let eventInput = parentElement.querySelector('.choice-dependent-events');
@@ -492,7 +490,6 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
                 eventInput = document.getElementById('dependentEventIds');
                 eventSelectedContainer = document.getElementById('dependentEventIds-selected');
             }
-            console.log('Event input found:', !!eventInput, eventInput?.className || eventInput?.id);
             
             if (eventInput && eventSelectedContainer) {
                 // For choice inputs, we need to use the class name as unique identifier
@@ -500,18 +497,15 @@ function selectItem(item, type, uniqueId, selectedContainer, dropdown) {
                 
                 // Find the parent event in allEvents
                 const parentEvent = allEvents.find(event => event.id === item.parentEventId);
-                console.log('Parent event found:', !!parentEvent, parentEvent?.title);
                 
                 if (parentEvent && eventSelectedContainer) {
                     // Check if parent event is not already in the container
                     const existingBadges = Array.from(eventSelectedContainer.children);
                     const alreadyExists = existingBadges.some(badge => badge.dataset.itemId === parentEvent.id);
-                    console.log('Already exists:', alreadyExists);
                     
                     if (!alreadyExists) {
                         // Get the uniqueId for this event input
                         const eventUniqueIdForDeps = eventInput.dataset.uniqueId || eventInput.id;
-                        console.log('Using event uniqueId:', eventUniqueIdForDeps);
                         
                         // Ensure the selectedDependencies entry exists
                         if (!selectedDependencies.events.has(eventUniqueIdForDeps)) {
@@ -862,9 +856,24 @@ function saveEventLocally(event) {
     });
     updateReferenceLists();
     
-    loadSavedEvents();
+    loadEvents();
     showMessage('Event saved locally!');
 }
+
+// Unified function to load events from the correct source
+async function loadEvents() {
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        try {
+            await loadEventsFromFirebase();
+        } catch (error) {
+            console.error('Firebase loading failed, falling back to localStorage:', error);
+            loadSavedEvents();
+        }
+    } else {
+        loadSavedEvents();
+    }
+}
+
 
 // Function to identify dependent events (events that are dependencies of other events)
 function findDependentEvents(savedEvents) {
@@ -915,10 +924,6 @@ function findDependentEvents(savedEvents) {
 
 function loadSavedEvents() {
     const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
-    const savedEventsList = document.getElementById('savedEventsList');
-    
-    console.log('Loading saved events:', savedEvents.length, 'events found');
-    console.log('Show dependent events only:', showDependentEventsOnly);
     
     // Update reference lists from saved events
     allEvents = savedEvents.map(event => ({
@@ -946,9 +951,16 @@ function loadSavedEvents() {
     
     updateReferenceLists();
     
+    // Use unified display function
+    displayEvents(savedEvents, 'localStorage');
+}
+
+// Unified function to display events with filtering support
+function displayEvents(events, source = 'firebase') {
+    const savedEventsList = document.getElementById('savedEventsList');
     savedEventsList.innerHTML = '';
     
-    if (savedEvents.length === 0) {
+    if (events.length === 0) {
         savedEventsList.innerHTML = '<div class="col-span-full text-center py-12"><p class="text-gray-400 text-lg">No saved events yet.</p><p class="text-gray-500 text-sm mt-2">Create and save your first event to see it here!</p></div>';
         return;
     }
@@ -957,9 +969,9 @@ function loadSavedEvents() {
     
     if (showDependentEventsOnly) {
         // Show only dependent events
-        const dependentEvents = findDependentEvents(savedEvents);
+        const dependentEvents = findDependentEvents(events);
         eventsToShow = dependentEvents;
-        hiddenCount = savedEvents.length - dependentEvents.length;
+        hiddenCount = events.length - dependentEvents.length;
         
         if (dependentEvents.length === 0) {
             savedEventsList.innerHTML = '<div class="col-span-full text-center py-12"><p class="text-gray-400 text-lg">No dependent events found.</p><p class="text-gray-500 text-sm mt-2">All events are root events (independent).</p></div>';
@@ -977,9 +989,8 @@ function loadSavedEvents() {
         };
     } else {
         // Show all events
-        eventsToShow = savedEvents;
+        eventsToShow = events;
         hiddenCount = 0;
-        
         infoCardConfig = null; // No info card needed for all events
     }
     
@@ -1000,18 +1011,21 @@ function loadSavedEvents() {
         savedEventsList.appendChild(infoCard);
     }
     
-    // Display events with original indices for proper functionality
-    eventsToShow.forEach((event) => {
-        const originalIndex = savedEvents.findIndex(e => e.id === event.id);
+    // Display events with appropriate styling and functionality
+    eventsToShow.forEach((event, index) => {
+        const originalIndex = events.findIndex(e => e.id === event.id);
+        // Find the index in allEvents array for tree functionality
+        const allEventsIndex = allEvents.findIndex(e => e.id === event.id);
         const eventCard = document.createElement('div');
+        const isFirebase = source === 'firebase';
         
         if (showDependentEventsOnly) {
             eventCard.className = 'bg-gray-700 rounded-xl p-6 border border-gray-600 hover:border-orange-500 transition-all duration-200 hover:shadow-lg';
             
-            const savedDate = new Date(event.savedAt).toLocaleDateString();
+            const savedDate = new Date(event.savedAt || event.createdAt || Date.now()).toLocaleDateString();
             
             // Find which events depend on this one (backward dependencies)
-            const dependentOnThis = savedEvents.filter(e => {
+            const dependentOnThis = events.filter(e => {
                 // Check direct dependencies
                 if (e.dependentEventIds && e.dependentEventIds.includes(event.id)) return true;
                 
@@ -1030,17 +1044,20 @@ function loadSavedEvents() {
                 return false;
             });
             
+            const loadFunction = isFirebase ? `loadFirebaseEventToForm('${event.id}')` : `loadEventToForm(${originalIndex})`;
+            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.id}')` : `deleteEvent(${originalIndex})`;
+            
             eventCard.innerHTML = `
                 <h4 class="text-lg font-semibold text-orange-400 mb-3">${event.title}</h4>
                 <p class="text-gray-300 text-sm mb-4 line-clamp-3">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</p>
                 <p class="text-gray-500 text-xs mb-4">
-                    Saved: ${savedDate} | Choices: ${event.choices.length}
+                    Saved: ${savedDate} | Choices: ${event.choices ? event.choices.length : 0}
                     ${dependentOnThis.length > 0 ? ` | Used by: ${dependentOnThis.length} event${dependentOnThis.length !== 1 ? 's' : ''}` : ''}
                 </p>
                 <div class="flex gap-2 flex-wrap">
-                    <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="loadEventToForm(${originalIndex})">Load</button>
-                    <button class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="showEventTree(${originalIndex})">🌳 Tree</button>
-                    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="deleteEvent(${originalIndex})">Delete</button>
+                    <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="${loadFunction}">Load</button>
+                    <button class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="showEventTree(${allEventsIndex})">🌳 Tree</button>
+                    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="${deleteFunction}">Delete</button>
                     <button class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="exportEvent(${originalIndex})">Export</button>
                 </div>
             `;
@@ -1048,16 +1065,19 @@ function loadSavedEvents() {
             // Show all events with original styling
             eventCard.className = 'bg-gray-700 rounded-xl p-6 border border-gray-600 hover:border-yellow-500 transition-all duration-200 hover:shadow-lg';
             
-            const savedDate = new Date(event.savedAt).toLocaleDateString();
+            const savedDate = new Date(event.savedAt || event.createdAt || Date.now()).toLocaleDateString();
+            
+            const loadFunction = isFirebase ? `loadFirebaseEventToForm('${event.id}')` : `loadEventToForm(${originalIndex})`;
+            const deleteFunction = isFirebase ? `deleteFirebaseEvent('${event.id}')` : `deleteEvent(${originalIndex})`;
             
             eventCard.innerHTML = `
                 <h4 class="text-lg font-semibold text-yellow-400 mb-3">${event.title}</h4>
                 <p class="text-gray-300 text-sm mb-4 line-clamp-3">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</p>
-                <p class="text-gray-500 text-xs mb-4">Saved: ${savedDate} | Choices: ${event.choices.length}</p>
+                <p class="text-gray-500 text-xs mb-4">Saved: ${savedDate} | Choices: ${event.choices ? event.choices.length : 0}</p>
                 <div class="flex gap-2 flex-wrap">
-                    <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="loadEventToForm(${originalIndex})">Load</button>
-                    <button class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="showEventTree(${originalIndex})">🌳 Tree</button>
-                    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="deleteEvent(${originalIndex})">Delete</button>
+                    <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="${loadFunction}">Load</button>
+                    <button class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="showEventTree(${allEventsIndex})">🌳 Tree</button>
+                    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="${deleteFunction}">Delete</button>
                     <button class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="exportEvent(${originalIndex})">Export</button>
                 </div>
             `;
@@ -1146,7 +1166,7 @@ function deleteEvent(index) {
         const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
         savedEvents.splice(index, 1);
         localStorage.setItem('savedEvents', JSON.stringify(savedEvents));
-        loadSavedEvents();
+        loadEvents();
         showMessage('Event deleted successfully!');
     }
 }
@@ -1308,32 +1328,8 @@ function exportAllData() {
 
 // Tree visualization functions
 function showEventTree(eventIndex) {
-    const savedEvents = JSON.parse(localStorage.getItem('savedEvents') || '[]');
-    const rootEvent = savedEvents[eventIndex];
-    
-    if (!rootEvent) {
-        showMessage('Event not found', 'error');
-        return;
-    }
-    
-    // Build the tree structure
-    const treeData = buildEventTree(rootEvent, savedEvents);
-    
-    // Generate SVG
-    const svg = generateTreeSVG(treeData, rootEvent.title);
-    
-    // Show in modal
-    const treeContainer = document.getElementById('treeContainer');
-    if (treeContainer) {
-        treeContainer.innerHTML = svg;
-    }
-    
-    const modal = document.getElementById('treeModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        modal.style.display = 'flex'; // Fallback
-    }
+    // Use the window function to maintain consistency
+    window.showEventTree(eventIndex);
 }
 
 function buildEventTree(rootEvent, allSavedEvents, options = { showForward: true, showBackward: true, includeChoices: true }) {
@@ -1769,10 +1765,8 @@ function saveEvent() {
     if (event) {
         // Try Firebase first, fallback to localStorage
         if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-            console.log('Firebase detected, attempting to save to Realtime Database...');
-            saveEventToFirebase(event);
+                saveEventToFirebase(event);
         } else {
-            console.log('Firebase not configured, saving locally');
             saveEventLocally(event);
         }
     }
@@ -1864,6 +1858,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('collapseAll').addEventListener('click', collapseAllChoices);
     document.getElementById('expandAll').addEventListener('click', expandAllChoices);
     
+    
     // Modal event listeners
     document.querySelector('.close').addEventListener('click', hideLoadModal);
     
@@ -1937,13 +1932,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Load saved events on page load
-    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        console.log('Loading events from Realtime Database...');
-        loadEventsFromFirebase();
-    } else {
-        console.log('Loading events from localStorage...');
-        loadSavedEvents();
-    }
+    loadEvents();
     
     // Initialize event filter buttons
     updateEventFilterButtons();
@@ -1956,27 +1945,22 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => refreshReferenceLists(), 300);
     });
     
-    console.log('Event Builder initialized successfully!');
 });
+
 
 // Firebase functions (to be implemented when Firebase is configured)
 async function saveEventToFirebase(event) {
     try {
-        console.log('Attempting to save event to Realtime Database...');
-        console.log('Event data to save:', event);
-        
         const eventData = {
             ...event,
             createdAt: firebase.database.ServerValue.TIMESTAMP,
             savedAt: new Date().toISOString()
         };
-        console.log('Final event data with timestamp:', eventData);
         
         // Push to the root node in Realtime Database (to match existing structure)
         const eventsRef = database.ref('/');
         const newEventRef = await eventsRef.push(eventData);
         
-        console.log('Event saved to Firebase with key: ', newEventRef.key);
         showMessage('Event saved to Firebase!');
         
         // Wait a moment for the data to be set, then reload
@@ -1985,8 +1969,6 @@ async function saveEventToFirebase(event) {
         }, 1000);
     } catch (error) {
         console.error('Error saving event to Firebase: ', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
         
         if (error.code === 'PERMISSION_DENIED') {
             showMessage('Firebase permission denied - check database rules', 'error');
@@ -1997,40 +1979,36 @@ async function saveEventToFirebase(event) {
         }
         
         // Fallback to local storage
-        console.log('Falling back to localStorage...');
         saveEventLocally(event);
     }
 }
 
 async function loadEventsFromFirebase() {
     try {
-        console.log('Attempting to connect to Realtime Database...');
-        console.log('Reading from root node...');
-        
         // Get reference to root node (where your data actually is)
         const eventsRef = database.ref('/');
         
         // Get the data once
         const snapshot = await eventsRef.once('value');
-        console.log('Successfully connected to Realtime Database!');
-        console.log('Snapshot exists:', snapshot.exists());
         
         const events = [];
         
         if (snapshot.exists()) {
             const data = snapshot.val();
-            console.log('Raw data from Firebase:', data);
             
             // Convert the object to an array
             Object.keys(data).forEach(key => {
                 const event = data[key];
-                console.log('Event key:', key);
-                console.log('Event data:', event);
                 
-                // Add the Firebase key as id and convert timestamps
+                // Skip test connection entries
+                if (key === 'test_connection') return;
+                
+                // Preserve original ID and add Firebase key
                 events.push({
-                    id: key,
                     ...event,
+                    id: key, // Use Firebase key as primary ID for operations
+                    originalId: event.id, // Preserve original GUID for dependency resolution
+                    firebaseKey: key, // Explicit Firebase key reference
                     // Convert Firebase timestamp to readable format if needed
                     savedAt: event.savedAt || new Date(event.createdAt || Date.now()).toISOString()
                 });
@@ -2044,7 +2022,30 @@ async function loadEventsFromFirebase() {
             });
         }
         
-        console.log(`Loaded ${events.length} events from Firebase`);
+        // Update dependency references to use Firebase keys for proper linking
+        events.forEach(event => {
+            // Update event dependencies
+            if (event.dependentEventIds) {
+                event.dependentEventIds = event.dependentEventIds.map(depId => {
+                    // Find the event with this original ID and return its Firebase key
+                    const targetEvent = events.find(e => e.originalId === depId);
+                    return targetEvent ? targetEvent.id : depId;
+                });
+            }
+            
+            // Update choice dependencies within choices
+            if (event.choices) {
+                event.choices.forEach(choice => {
+                    if (choice.dependentEventIds) {
+                        choice.dependentEventIds = choice.dependentEventIds.map(depId => {
+                            // Find the event with this original ID and return its Firebase key
+                            const targetEvent = events.find(e => e.originalId === depId);
+                            return targetEvent ? targetEvent.id : depId;
+                        });
+                    }
+                });
+            }
+        });
         
         // Update reference lists with Firebase data
         allEvents = events.map(event => ({
@@ -2072,36 +2073,8 @@ async function loadEventsFromFirebase() {
         
         updateReferenceLists();
         
-        // Store Firebase events in the same format as localStorage for display
-        const savedEventsList = document.getElementById('savedEventsList');
-        savedEventsList.innerHTML = '';
-        
-        if (events.length === 0) {
-            savedEventsList.innerHTML = '<div class="col-span-full text-center py-12"><p class="text-gray-400 text-lg">No saved events yet.</p><p class="text-gray-500 text-sm mt-2">Create and save your first event to see it here!</p></div>';
-            return;
-        }
-        
-        // Display events with the same styling as localStorage events
-        events.forEach((event, index) => {
-            const eventCard = document.createElement('div');
-            eventCard.className = 'bg-gray-700 rounded-xl p-6 border border-gray-600 hover:border-yellow-500 transition-all duration-200 hover:shadow-lg';
-            
-            const savedDate = new Date(event.savedAt || event.createdAt || Date.now()).toLocaleDateString();
-            
-            eventCard.innerHTML = `
-                <h4 class="text-lg font-semibold text-yellow-400 mb-3">${event.title}</h4>
-                <p class="text-gray-300 text-sm mb-4 line-clamp-3">${event.description.substring(0, 100)}${event.description.length > 100 ? '...' : ''}</p>
-                <p class="text-gray-500 text-xs mb-4">Saved: ${savedDate} | Choices: ${event.choices ? event.choices.length : 0}</p>
-                <div class="flex gap-2 flex-wrap">
-                    <button class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="loadFirebaseEventToForm('${event.id}')">Load</button>
-                    <button class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="showEventTree(${index})">🌳 Tree</button>
-                    <button class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="deleteFirebaseEvent('${event.id}')">Delete</button>
-                    <button class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors duration-200" onclick="exportEvent(${index})">Export</button>
-                </div>
-            `;
-            
-            savedEventsList.appendChild(eventCard);
-        });
+        // Display Firebase events with the same filtering logic as localStorage
+        displayEvents(events);
         
     } catch (error) {
         console.error('Error loading events from Firebase: ', error);
@@ -2117,7 +2090,6 @@ async function loadEventsFromFirebase() {
         }
         
         // Fallback to local storage
-        console.log('Falling back to localStorage...');
         loadSavedEvents();
     }
 }
@@ -2189,34 +2161,55 @@ function loadFirebaseEventToForm(eventId) {
 }
 
 async function deleteFirebaseEvent(eventId) {
-    console.log('Attempting to delete event with ID:', eventId);
-    
     if (confirm('Are you sure you want to delete this event from Firebase?')) {
         try {
-            console.log('Deleting from path:', `/${eventId}`);
-            const result = await database.ref(`/${eventId}`).remove();
-            console.log('Delete result:', result);
+            // Find the Firebase key for this event
+            const eventsRef = database.ref('/');
+            const snapshot = await eventsRef.once('value');
+            
+            if (!snapshot.exists()) {
+                showMessage('No events found in Firebase', 'error');
+                return;
+            }
+            
+            const data = snapshot.val();
+            let firebaseKey = null;
+            
+            // Search for the event by its ID field or use the eventId as Firebase key directly
+            Object.keys(data).forEach(key => {
+                const event = data[key];
+                if (event && (event.id === eventId || key === eventId)) {
+                    firebaseKey = key;
+                }
+            });
+            
+            if (!firebaseKey) {
+                showMessage('Event not found in Firebase', 'error');
+                return;
+            }
+            
+            // Perform the delete operation using the correct Firebase key
+            const eventRef = database.ref(`/${firebaseKey}`);
+            await eventRef.remove();
+            
             showMessage('Event deleted from Firebase!');
             
             // Wait a moment then reload
             setTimeout(() => {
                 loadEventsFromFirebase();
             }, 500);
+            
         } catch (error) {
             console.error('Error deleting event:', error);
-            console.error('Error code:', error.code);
-            console.error('Error message:', error.message);
-            console.error('Full error object:', error);
             
             if (error.code === 'PERMISSION_DENIED') {
                 showMessage('Permission denied - check Firebase database rules', 'error');
-                console.log('Firebase Database Rules may be blocking delete operations.');
-                console.log('Go to Firebase Console > Realtime Database > Rules');
-                console.log('Make sure you have: ".write": true');
-            } else if (error.message && error.message.includes('permission')) {
-                showMessage('Permission denied - check Firebase database rules', 'error');
+            } else if (error.code === 'NETWORK_ERROR') {
+                showMessage('Network error - check your internet connection', 'error');
+            } else if (error.code === 'UNAVAILABLE') {
+                showMessage('Firebase service temporarily unavailable', 'error');
             } else {
-                showMessage(`Error deleting event: ${error.message}`, 'error');
+                showMessage(`Firebase delete error: ${error.message || 'Unknown error'}`, 'error');
             }
         }
     }
