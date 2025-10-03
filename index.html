@@ -78,43 +78,68 @@
             scrollbar-width: thin;
             scrollbar-color: rgba(107, 114, 128, 0.8) rgba(55, 65, 81, 0.5);
         }
+
+        /* Mobile sticky bottom bar enhancements */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .safe-area-inset-bottom {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+        }
+        
+        /* Ensure the sticky bar stays above everything */
+        @media (max-width: 768px) {
+            .mobile-sticky-bar {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                z-index: 9999 !important;
+            }
+        }
     </style>
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen">
-    <div class="max-w-[1600px] mx-auto px-6 py-6">
-        <header class="text-center bg-gray-800 rounded-2xl p-8 mb-8 shadow-2xl border border-gray-700">
+    <div class="max-w-[1600px] mx-auto px-4 py-4 md:px-6 md:py-6 pb-20 md:pb-6">
+        <header class="text-center bg-gray-800 rounded-2xl p-4 md:p-8 mb-6 md:mb-8 shadow-2xl border border-gray-700">
             <h1
-                class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-4">
+                class="text-2xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 mb-2 md:mb-4">
                 🥔 Event Builder - Patato King</h1>
-            <p class="text-xl text-gray-300">Create interactive events for your game</p>
+            <p class="text-lg md:text-xl text-gray-300">Create interactive events for your game</p>
         </header>
 
-        <!-- Action Buttons - Sticky at top-right -->
-        <div
-            class="fixed top-4 right-4 z-50 flex flex-col gap-3 p-4 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 w-[200px]">
+        <!-- Action Buttons - Mobile bottom bar, Desktop top-right -->
+        <div class="mobile-sticky-bar fixed bottom-0 left-0 right-0 md:top-4 md:right-4 md:left-auto md:bottom-auto z-50 flex flex-row md:flex-col gap-1 md:gap-3 p-2 md:p-4 bg-gray-800/95 md:bg-gray-800 backdrop-blur-sm md:backdrop-blur-none md:rounded-2xl shadow-2xl border-t-2 md:border border-gray-600 md:border-gray-700 w-full md:w-[200px] md:max-w-[calc(100vw-2rem)] safe-area-inset-bottom">
             <button type="button" id="previewEvent"
-                class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center">
-                <span class="mr-2">👁️</span>Preview JSON
+                class="flex-1 md:flex-none px-2 py-2 md:px-6 md:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col md:flex-row items-center justify-center text-xs md:text-base">
+                <span class="mb-1 md:mb-0 md:mr-2">👁️</span>
+                <span class="hidden sm:inline md:inline">Preview JSON</span>
+                <span class="sm:hidden md:hidden">Preview</span>
             </button>
             <button type="button" id="saveEvent"
-                class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center">
-                <span class="mr-2">💾</span>Save Event
+                class="flex-1 md:flex-none px-2 py-2 md:px-6 md:py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col md:flex-row items-center justify-center text-xs md:text-base">
+                <span class="mb-1 md:mb-0 md:mr-2">💾</span>
+                <span class="hidden sm:inline md:inline">Save Event</span>
+                <span class="sm:hidden md:hidden">Save</span>
             </button>
             <button type="button" id="loadEvent"
-                class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center">
-                <span class="mr-2">📂</span>Load Event
+                class="flex-1 md:flex-none px-2 py-2 md:px-6 md:py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col md:flex-row items-center justify-center text-xs md:text-base">
+                <span class="mb-1 md:mb-0 md:mr-2">📂</span>
+                <span class="hidden sm:inline md:inline">Load Event</span>
+                <span class="sm:hidden md:hidden">Load</span>
             </button>
             <button type="button" id="clearForm"
-                class="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center">
-                <span class="mr-2">🗑️</span>Clear Form
+                class="flex-1 md:flex-none px-2 py-2 md:px-6 md:py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200 flex flex-col md:flex-row items-center justify-center text-xs md:text-base">
+                <span class="mb-1 md:mb-0 md:mr-2">🗑️</span>
+                <span class="hidden sm:inline md:inline">Clear Form</span>
+                <span class="sm:hidden md:hidden">Clear</span>
             </button>
         </div>
 
 
 
         <!-- Event Builder Container -->
-        <div id="event-builder" class="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 mb-8">
+        <div id="event-builder" class="bg-gray-800 rounded-2xl p-4 md:p-8 shadow-2xl border border-gray-700 mb-6 md:mb-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-blue-400 flex items-center">
                     <span class="mr-3">🎮</span>Event Builder
@@ -128,10 +153,10 @@
 
             <!-- Event Builder Content - Collapsible -->
             <div class="event-builder-content" style="display: none;">
-                <div class="grid grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <div>
                         <!-- Event Form -->
-                        <div class="bg-gray-700 rounded-xl p-6 border border-gray-600">
+                        <div class="bg-gray-700 rounded-xl p-4 md:p-6 border border-gray-600">
                             <h3 class="text-xl font-bold text-blue-300 mb-6 flex items-center">
                                 <span class="mr-3">📝</span>Event Details
                             </h3>
@@ -195,7 +220,7 @@
                                 </div>
 
                                 <!-- Trigger Section -->
-                                <div class="bg-gray-700 rounded-xl p-6 border border-gray-600">
+                                <div class="bg-gray-700 rounded-xl p-4 md:p-6 border border-gray-600">
                                     <div class="flex justify-between items-center mb-4">
                                         <h3 class="text-lg font-semibold text-purple-400 flex items-center">
                                             <span class="mr-2">🎯</span>Trigger Conditions
@@ -324,18 +349,22 @@
                             <h3 class="text-xl font-bold text-green-300 flex items-center">
                                 <span class="mr-3">⚡</span>Event Choices
                             </h3>
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-1 md:gap-2">
                                 <button type="button" id="collapseAll"
-                                    class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
-                                    Collapse All
+                                    class="px-2 py-1 md:px-3 md:py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-xs md:text-sm font-medium transition-colors duration-200">
+                                    <span class="hidden sm:inline">Collapse All</span>
+                                    <span class="sm:hidden">Collapse</span>
                                 </button>
                                 <button type="button" id="expandAll"
-                                    class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
-                                    Expand All
+                                    class="px-2 py-1 md:px-3 md:py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-xs md:text-sm font-medium transition-colors duration-200">
+                                    <span class="hidden sm:inline">Expand All</span>
+                                    <span class="sm:hidden">Expand</span>
                                 </button>
                                 <button type="button" id="addChoice"
-                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center">
-                                    <span class="mr-2">+</span>Add Choice
+                                    class="px-2 py-1 md:px-4 md:py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs md:text-sm font-medium transition-colors duration-200 flex items-center">
+                                    <span class="mr-1 md:mr-2">+</span>
+                                    <span class="hidden sm:inline">Add Choice</span>
+                                    <span class="sm:hidden">Add</span>
                                 </button>
                             </div>
                         </div>
@@ -351,23 +380,30 @@
         <div id="saved-events"
             class="bg-gray-800 rounded-2xl p-8 shadow-2xl border border-gray-700 mb-8 max-h-[70vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-yellow-400 flex items-center">
-                    <span class="mr-3">💾</span>Saved Events
+                <h2 class="text-xl md:text-2xl font-bold text-yellow-400 flex items-center">
+                    <span class="mr-2 md:mr-3">💾</span>    
+                    <span class="sm:inline">Saved Events</span>
                 </h2>
-                <div class="flex gap-2">
+                <div class="flex flex-col gap-2 md:flex-row md:gap-2">
                     <button type="button"
-                        class="collapse-btn px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md text-sm font-medium transition-colors duration-200"
+                        class="collapse-btn px-3 py-1 md:px-6 md:py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md text-sm md:text-base font-medium transition-colors duration-200 self-start"
                         onclick="toggleSavedEvents()">
                         <span class="collapse-icon">+</span>
                     </button>
-                    <button id="showAllEventsBtn"
-                        class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 active-filter">
-                        📋 All Events
-                    </button>
-                    <button id="showDependentEventsBtn"
-                        class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
-                        🔗 Dependent Only
-                    </button>
+                    <div class="flex gap-2">
+                        <button id="showAllEventsBtn"
+                            class="px-3 py-1 md:px-6 md:py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm md:text-base font-medium transition-colors duration-200 active-filter flex items-center">
+                            <span class="mr-1">📋</span>
+                            <span class="hidden min-[480px]:inline">All Events</span>
+                            <span class="min-[480px]:hidden">All</span>
+                        </button>
+                        <button id="showDependentEventsBtn"
+                            class="px-3 py-1 md:px-6 md:py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm md:text-base font-medium transition-colors duration-200 flex items-center">
+                            <span class="mr-1">🔗</span>
+                            <span class="hidden min-[480px]:inline">Dependent Only</span>
+                            <span class="min-[480px]:hidden">Dependent</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -467,8 +503,8 @@
             </div>
         </div>
 
-        <!-- Navigation Menu - Bottom Right -->
-        <div class="fixed bottom-4 right-4 z-40 flex flex-col gap-1 w-[200px]">
+        <!-- Navigation Menu - Hidden on mobile, visible on desktop -->
+        <div class="hidden md:flex fixed bottom-4 right-4 z-40 flex-col gap-1 w-[200px] max-w-[calc(100vw-2rem)]">
             <!-- Header -->
             <div class="text-center mb-2">
                 <h3 class="text-xs font-bold text-transparent bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text flex items-center justify-center gap-1">
@@ -480,34 +516,38 @@
             
             <!-- Navigation Links -->
             <a href="#event-builder" 
-                class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-blue-600/20 to-blue-500/20 hover:from-blue-600/40 hover:to-blue-500/40 text-blue-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-blue-500/25 hover:scale-105 transform border border-blue-500/20 hover:border-blue-400/40">
-                <span class="group-hover:scale-110 transition-transform duration-300">🎮</span>
-                <span>Event Builder</span>
+                class="group flex items-center gap-1 md:gap-2 px-2 py-1 md:px-3 md:py-2 text-xs bg-gradient-to-r from-blue-600/20 to-blue-500/20 hover:from-blue-600/40 hover:to-blue-500/40 text-blue-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-blue-500/25 hover:scale-105 transform border border-blue-500/20 hover:border-blue-400/40">
+                <span class="group-hover:scale-110 transition-transform duration-300 text-xs">🎮</span>
+                <span class="hidden sm:inline">Event Builder</span>
+                <span class="sm:hidden">Builder</span>
             </a>
             
             <a href="#saved-events" 
-                class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-yellow-600/20 to-amber-500/20 hover:from-yellow-600/40 hover:to-amber-500/40 text-yellow-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-yellow-500/25 hover:scale-105 transform border border-yellow-500/20 hover:border-yellow-400/40">
-                <span class="group-hover:scale-110 transition-transform duration-300">💾</span>
-                <span>Saved Events</span>
+                class="group flex items-center gap-1 md:gap-2 px-2 py-1 md:px-3 md:py-2 text-xs bg-gradient-to-r from-yellow-600/20 to-amber-500/20 hover:from-yellow-600/40 hover:to-amber-500/40 text-yellow-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-yellow-500/25 hover:scale-105 transform border border-yellow-500/20 hover:border-yellow-400/40">
+                <span class="group-hover:scale-110 transition-transform duration-300 text-xs">💾</span>
+                <span class="hidden sm:inline">Saved Events</span>
+                <span class="sm:hidden">Saved</span>
             </a>
             
             <a href="#items" 
-                class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-purple-600/20 to-violet-500/20 hover:from-purple-600/40 hover:to-violet-500/40 text-purple-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-purple-500/25 hover:scale-105 transform border border-purple-500/20 hover:border-purple-400/40">
-                <span class="group-hover:scale-110 transition-transform duration-300">🎒</span>
+                class="group flex items-center gap-1 md:gap-2 px-2 py-1 md:px-3 md:py-2 text-xs bg-gradient-to-r from-purple-600/20 to-violet-500/20 hover:from-purple-600/40 hover:to-violet-500/40 text-purple-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-purple-500/25 hover:scale-105 transform border border-purple-500/20 hover:border-purple-400/40">
+                <span class="group-hover:scale-110 transition-transform duration-300 text-xs">🎒</span>
                 <span>Items</span>
             </a>
             
             <a href="#reference-lists" 
-                class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-orange-600/20 to-red-500/20 hover:from-orange-600/40 hover:to-red-500/40 text-orange-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-orange-500/25 hover:scale-105 transform border border-orange-500/20 hover:border-orange-400/40">
-                <span class="group-hover:scale-110 transition-transform duration-300">📚</span>
-                <span>Reference Lists</span>
+                class="group flex items-center gap-1 md:gap-2 px-2 py-1 md:px-3 md:py-2 text-xs bg-gradient-to-r from-orange-600/20 to-red-500/20 hover:from-orange-600/40 hover:to-red-500/40 text-orange-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-orange-500/25 hover:scale-105 transform border border-orange-500/20 hover:border-orange-400/40">
+                <span class="group-hover:scale-110 transition-transform duration-300 text-xs">📚</span>
+                <span class="hidden sm:inline">Reference Lists</span>
+                <span class="sm:hidden">Lists</span>
             </a>
 
              <!-- Collapse All Button -->
              <button type="button" onclick="collapseAllContainers()"
-                 class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-teal-600/20 to-cyan-500/20 hover:from-teal-600/40 hover:to-cyan-500/40 text-teal-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-teal-500/25 hover:scale-105 transform border border-teal-500/20 hover:border-teal-400/40">
-                 <span class="group-hover:scale-110 transition-transform duration-300">📁</span>
-                 <span>Collapse All</span>
+                 class="group flex items-center gap-1 md:gap-2 px-2 py-1 md:px-3 md:py-2 text-xs bg-gradient-to-r from-teal-600/20 to-cyan-500/20 hover:from-teal-600/40 hover:to-cyan-500/40 text-teal-300 hover:text-white rounded-lg transition-all duration-300 font-medium shadow-md hover:shadow-teal-500/25 hover:scale-105 transform border border-teal-500/20 hover:border-teal-400/40">
+                 <span class="group-hover:scale-110 transition-transform duration-300 text-xs">📁</span>
+                 <span class="hidden sm:inline">Collapse All</span>
+                 <span class="sm:hidden">Collapse</span>
              </button>
         </div>
     </div>
